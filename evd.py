@@ -156,7 +156,7 @@ def test(n_clicks, n_events):
 
     histos = subplots.make_subplots(rows=len(active_modules), cols=2,
                                     subplot_titles=['(%i,%i)' % (m+1,p+1) for m in active_modules for p in range(2)],
-                                    vertical_spacing=0.25/len(active_modules),
+                                    vertical_spacing=0.25/len(active_modules) if len(active_modules) else 0,
                                     shared_xaxes=True, shared_yaxes=True)
 
     for im, module_id in enumerate(active_modules):
@@ -212,8 +212,9 @@ def run_display(input_file, detector_properties, pixel_layout):
     mc_packets = datalog['mc_packets_assn']
 
     tr = packets['packet_type'] == 7
-    event_dividers = np.argwhere(tr).T[0][::2]
-    event_dividers = np.append(event_dividers,len(packets))
+    trigger_packets = np.argwhere(tr).T[0]
+    event_dividers = trigger_packets[:-1][np.diff(trigger_packets)!=1]
+    event_dividers = np.append(event_dividers,[trigger_packets[-1],len(packets)])
     start_packet = event_dividers[0]
     end_packet = event_dividers[1]
     last_trigger = packets[start_packet]['timestamp']
