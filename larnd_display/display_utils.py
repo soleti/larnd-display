@@ -10,6 +10,51 @@ from collections import defaultdict
 
 import plotly.graph_objects as go
 
+import plotly.colors
+
+def get_continuous_color(colorscale, intermed):
+    """
+    Plotly continuous colorscales assign colors to the range [0, 1]. This function computes the intermediate
+    color for any value in that range.
+
+    Plotly doesn't make the colorscales directly accessible in a common format.
+    Some are ready to use:
+
+        colorscale = plotly.colors.PLOTLY_SCALES["Greens"]
+
+    Others are just swatches that need to be constructed into a colorscale:
+
+        viridis_colors, scale = plotly.colors.convert_colors_to_same_type(plotly.colors.sequential.Viridis)
+        colorscale = plotly.colors.make_colorscale(viridis_colors, scale=scale)
+
+    :param colorscale: A plotly continuous colorscale defined with RGB string colors.
+    :param intermed: value in the range [0, 1]
+    :return: color in rgb string format
+    :rtype: str
+    """
+    if len(colorscale) < 1:
+        raise ValueError("colorscale must have at least one color")
+
+    if intermed <= 0 or len(colorscale) == 1:
+        return colorscale[0][1]
+    if intermed >= 1:
+        return colorscale[-1][1]
+
+    for cutoff, color in colorscale:
+        if intermed > cutoff:
+            low_cutoff, low_color = cutoff, color
+        else:
+            high_cutoff, high_color = cutoff, color
+            break
+
+    # noinspection PyUnboundLocalVariable
+    return plotly.colors.find_intermediate_color(
+        lowcolor=low_color, highcolor=high_color,
+        intermed=((intermed - low_cutoff) / (high_cutoff - low_cutoff)),
+        colortype="rgb")
+
+COLORSCALE = plotly.colors.make_colorscale(plotly.colors.convert_colors_to_same_type(plotly.colors.sequential.Viridis)[0])
+
 
 color_dict = {11: '#3f90da',
               -11: '#92dadd',
@@ -86,7 +131,7 @@ def plot_geometry():
             opacity=0.5,
             textfont=dict(
                 color='gray',
-                size=8
+                size=16
             ),
             showlegend=False,
         )
@@ -94,6 +139,37 @@ def plot_geometry():
 
     return drawn_objects
 
+def plot_light(geometry, n_photons):
+    drawn_objects = []
+    ys = np.array([-595.43, -545.68, -490.48, -440.73, -385.53, -335.78,
+                   -283.65, -236.65, -178.70, -131.70, -73.75, -26.75,
+                   25.38, 75.13, 130.33, 180.08, 235.28, 285.03, 337.15,
+                   384.15, 442.10, 489.10, 547.05, 594.05])/10
+    light_width = ys[1]-ys[0]
+
+    for ix in range(0,detector.TPC_BORDERS.shape[0]):
+        for ilight, light_y in enumerate(ys):
+            for iside in range(2):
+
+                opid = ilight + iside*len(ys) + ix*len(ys)*2
+                xx = np.linspace(detector.TPC_BORDERS[ix][2][0], detector.TPC_BORDERS[ix][2][1], 2)
+                zz = np.linspace(light_y - light_width/2 + geometry.tpc_offsets[0][1] + 0.25,
+                                 light_y + light_width/2 + geometry.tpc_offsets[0][1] - 0.25, 2)
+                xx,zz = np.meshgrid(xx,zz)
+
+                light_color=[[0.0, get_continuous_color(COLORSCALE, intermed=n_photons[opid]/max(n_photons))],
+                             [1.0, get_continuous_color(COLORSCALE, intermed=n_photons[opid]/max(n_photons))]]
+                light_plane = dict(type='surface', y=xx, x=np.full(xx.shape, detector.TPC_BORDERS[ix][0][iside]), z=zz,
+                                opacity=0.25,
+                                hoverinfo='text',
+                                text=f'Optical detector {opid}<br>{n_photons[opid]:.2f} photons',
+                                colorscale=light_color,
+                                showlegend=False,
+                                showscale=False)
+                if round(n_photons[opid]) > 1:
+                    drawn_objects.append(light_plane)
+
+    return drawn_objects
 
 def plot_hits(geometry, event_packets, start_packet, last_trigger):
     hits = [[], [], []]
@@ -132,7 +208,7 @@ def plot_hits(geometry, event_packets, start_packet, last_trigger):
                                   hoverinfo='text',
                                   showlegend=False,
                                   marker={'size': 1.75,
-                                          'opacity': 0.5,
+                                          'opacity': 0.7,
                                           'colorscale': 'Spectral_r',
                                           'color': hits_charge})]
 
@@ -152,7 +228,7 @@ def plot_tracks(tracks, track_ids, n_events):
                             hoverinfo='text',
                             name=r'$%s$' % latex_name,
                             text='%s<br>trackId: %i' % (html_name, itrk),
-                            opacity=0.5,
+                            opacity=0.3,
                             legendgroup='%i_%i' % (n_events,track['pdgId']),
                             # legendgrouptitle_text=r'$%s$' % latex_name,
                             customdata=['track_%i' % itrk],

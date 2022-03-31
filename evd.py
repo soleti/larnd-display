@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import h5py
+from matplotlib.pyplot import draw
 import numpy as np
 
 import dash
@@ -12,12 +13,12 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotly import subplots
 
-from larnd_display.display_utils import DetectorGeometry, plot_geometry, plot_hits, plot_tracks
+from larnd_display.display_utils import DetectorGeometry, plot_geometry, plot_hits, plot_light, plot_tracks
 from larndsim.consts import detector
 
 fig = go.Figure(plot_geometry())
 camera = dict(
-    eye=dict(x=-1.7,y=0.3,z=1.1)
+    eye=dict(x=-2,y=0.3,z=1.1)
 )
 
 fig.update_layout(scene_camera=camera,
@@ -54,10 +55,10 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
      Output('n-events', 'children')],
     [Input('following-button', 'n_clicks'),
      Input('previous-button', 'n_clicks'),
-     Input("event-display", "clickData"),
+    #  Input("event-display", "clickData"),
      Input("n-events", "children")],
      State('event-display', 'figure'))
-def update_output(n_clicks_next, n_clicks_prev, click_data, n_events, figure):
+def update_output(n_clicks_next, n_clicks_prev, n_events, figure):
 
     following = 'following-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
     previous = 'previous-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
@@ -83,36 +84,37 @@ def update_output(n_clicks_next, n_clicks_prev, click_data, n_events, figure):
         end_packet = event_dividers[n_events+1]
 
         track_ids = np.unique(mc_packets[start_packet:end_packet]['track_ids'])[1:]
-
         last_trigger = packets[start_packet]['timestamp']
         event_packets = packets[start_packet:end_packet]
         drawn_objects = plot_hits(my_geometry, event_packets, start_packet, last_trigger)
-        drawn_objects.extend(plot_tracks(tracks, track_ids, n_events))
+        drawn_objects.extend(plot_tracks(tracks, range(track_ids[0], track_ids[-1]), n_events))
         drawn_objects.extend(plot_geometry())
+        if light_lut:
+            drawn_objects.extend(plot_light(my_geometry,np.sum(light_lut[track_ids]['n_photons_det'],axis=0)))
         fig.data = []
         fig.add_traces(drawn_objects)
 
-    if click_data:
-        if 'customdata' in click_data['points'][0]:
-            if 'point' in click_data['points'][0]['customdata']:
-                packet_id = int(click_data['points'][0]['customdata'].split('_')[1])
-                track_ids = mc_packets[packet_id]['track_ids']
-                fractions = mc_packets[packet_id]['fraction']
-                track_ids = [t for t,f in zip(track_ids,fractions) if f > 0]
-                output_track_ids = ', '.join(['%i' % i for i in track_ids])
-                output_fractions = ', '.join(['%f' % f for f in fractions if f > 0])
-                for itr,trace in enumerate(fig.data):
-                    if trace['customdata']:
-                        if "track" in trace['customdata'][0]:
-                            track_id = int(trace['customdata'][0].split('_')[1])
-                            if track_id in track_ids:
-                                fig.data[itr]['line']['width'] = 18
-                                fig.data[itr]['opacity'] = 0.9
-                            elif fig.data[itr]['line']['width'] == 18:
-                                fig.data[itr]['line']['width'] = 12
-                                fig.data[itr]['opacity'] = 0.7
+    # if click_data:
+    #     if 'customdata' in click_data['points'][0]:
+    #         if 'point' in click_data['points'][0]['customdata']:
+    #             packet_id = int(click_data['points'][0]['customdata'].split('_')[1])
+    #             track_ids = mc_packets[packet_id]['track_ids']
+    #             fractions = mc_packets[packet_id]['fraction']
+    #             track_ids = [t for t,f in zip(track_ids,fractions) if f > 0]
+    #             output_track_ids = ', '.join(['%i' % i for i in track_ids])
+    #             output_fractions = ', '.join(['%f' % f for f in fractions if f > 0])
+    #             for itr,trace in enumerate(fig.data):
+    #                 if trace['customdata']:
+    #                     if "track" in trace['customdata'][0]:
+    #                         track_id = int(trace['customdata'][0].split('_')[1])
+    #                         if track_id in track_ids:
+    #                             fig.data[itr]['line']['width'] = 18
+    #                             fig.data[itr]['opacity'] = 0.9
+    #                         elif fig.data[itr]['line']['width'] == 18:
+    #                             fig.data[itr]['line']['width'] = 12
+    #                             fig.data[itr]['opacity'] = 0.7
 
-                output = 'Hit associated to tracks ' + output_track_ids + ' with fractions ' + output_fractions
+    #             output = 'Hit associated to tracks ' + output_track_ids + ' with fractions ' + output_fractions
 
     return fig, False, n_events
 
@@ -193,6 +195,7 @@ def test(n_clicks, n_events):
 event_dividers = None
 mc_packets = None
 packets = None
+light_lut = None
 my_geometry = None
 tr = None
 tracks = None
@@ -201,6 +204,7 @@ def run_display(input_file, detector_properties, pixel_layout):
     global event_dividers
     global mc_packets
     global packets
+    global light_lut
     global my_geometry
     global tr
     global tracks
@@ -210,7 +214,8 @@ def run_display(input_file, detector_properties, pixel_layout):
     tracks = datalog['tracks']
     packets = datalog['packets']
     mc_packets = datalog['mc_packets_assn']
-
+    if 'light_dat' in datalog.keys():
+        light_lut = datalog['light_dat']
     tr = packets['packet_type'] == 7
     trigger_packets = np.argwhere(tr).T[0]
     event_dividers = trigger_packets[:-1][np.diff(trigger_packets)!=1]
@@ -223,6 +228,8 @@ def run_display(input_file, detector_properties, pixel_layout):
     track_ids = np.unique(mc_packets[start_packet:end_packet]['track_ids'])[1:]
     drawn_objects.extend(plot_tracks(tracks, track_ids, 0))
     drawn_objects.extend(plot_geometry())
+    if light_lut:
+        drawn_objects.extend(plot_light(my_geometry,np.sum(light_lut[track_ids]['n_photons_det'],axis=0)))
     fig.add_traces(drawn_objects)
 
     app.layout = dbc.Container(
@@ -261,11 +268,13 @@ def run_display(input_file, detector_properties, pixel_layout):
                     dbc.Col([dcc.Graph(id='event-display',
                                        figure=fig,
                                        clear_on_unhover=True,
-                                       style={'height': '90vh'})]),
+                                       style={'height': '90vh'})],
+                            width=9),
                     dbc.Col([html.H4(children='ADC timestamp histograms'),
-                            html.Div([html.P(id='object-information'),
-                                      dcc.Graph(id='time-histogram')],
-                                      style={'margin-right':'2em'})]),
+                             html.Div([html.P(id='object-information'),
+                                       dcc.Graph(id='time-histogram')],
+                                       style={'margin-right':'2em'})],
+                            width=3),
                 ]
             )
         ]
