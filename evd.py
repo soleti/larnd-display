@@ -49,16 +49,18 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
                 ],
                 title='LArND event display')
 
+evid = 0
+
 @app.callback(
     [Output("event-display", "figure"),
      Output("alert-auto", "is_open"),
-     Output('n-events', 'children')],
+     Output('input-evid', 'value')],
     [Input('following-button', 'n_clicks'),
      Input('previous-button', 'n_clicks'),
-    #  Input("event-display", "clickData"),
-     Input("n-events", "children")],
+     Input("input-evid", "value")],
      State('event-display', 'figure'))
 def update_output(n_clicks_next, n_clicks_prev, n_events, figure):
+    global evid
 
     following = 'following-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
     previous = 'previous-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
@@ -74,12 +76,12 @@ def update_output(n_clicks_next, n_clicks_prev, n_events, figure):
     if n_events >= len(event_dividers)-1:
         n_events = len(event_dividers)-2
         return fig, True, n_events
-
     if n_events < 0:
         n_events = 0
         return fig, True, 0
 
-    if following or previous:
+    if evid != n_events:
+        evid = n_events
         start_packet = event_dividers[n_events]
         end_packet = event_dividers[n_events+1]
 
@@ -123,8 +125,8 @@ def update_output(n_clicks_next, n_clicks_prev, n_events, figure):
      Output('time-histogram', 'figure'),
      Output('time-histogram', 'style')],
     [Input('following-button', 'n_clicks'),
-     Input('n-events', 'children')])
-def test(n_clicks, n_events):
+     Input('input-evid', 'value')])
+def histogram(n_clicks, n_events):
     start_packet = event_dividers[n_events]
     end_packet = event_dividers[n_events+1]
     event_packets = packets[start_packet:end_packet]
@@ -250,7 +252,11 @@ def run_display(input_file, detector_properties, pixel_layout):
             dbc.Row([
                 html.Div([
                     dbc.Button('<', id='previous-button', n_clicks=0, color="primary"),
-                    html.Div(id='n-events',children='0', style={'margin-left': '1em','display':'inline-block','text-align':'center'}),
+                    dcc.Input(id="input-evid",
+                              type='number',
+                              placeholder="0",
+                              value="0",
+                              style={'width': '5em', 'display': 'inline-block', 'margin-right': '0.5em', 'margin-left': '0.5em'}),
                     html.Div(children=f'/{len(event_dividers)-2}', style={'margin-right': '1em','display':'inline-block','text-align':'center'}),
                     dbc.Button('>', id='following-button', n_clicks=0, color="primary")
                 ]),

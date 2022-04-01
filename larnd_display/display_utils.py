@@ -155,11 +155,17 @@ def plot_light(geometry, n_photons):
                 xx = np.linspace(detector.TPC_BORDERS[ix][2][0], detector.TPC_BORDERS[ix][2][1], 2)
                 zz = np.linspace(light_y - light_width/2 + geometry.tpc_offsets[0][1] + 0.25,
                                  light_y + light_width/2 + geometry.tpc_offsets[0][1] - 0.25, 2)
+
                 xx,zz = np.meshgrid(xx,zz)
 
                 light_color=[[0.0, get_continuous_color(COLORSCALE, intermed=n_photons[opid]/max(n_photons))],
                              [1.0, get_continuous_color(COLORSCALE, intermed=n_photons[opid]/max(n_photons))]]
-                light_plane = dict(type='surface', y=xx, x=np.full(xx.shape, detector.TPC_BORDERS[ix][0][iside]), z=zz,
+
+                if ix == 0:
+                    flip = 0
+                else:
+                    flip = -1
+                light_plane = dict(type='surface', y=xx, x=np.full(xx.shape, detector.TPC_BORDERS[ix][0][iside+flip]), z=zz,
                                 opacity=0.25,
                                 hoverinfo='text',
                                 text=f'Optical detector {opid}<br>{n_photons[opid]:.2f} photons',
