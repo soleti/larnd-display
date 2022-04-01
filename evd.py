@@ -64,8 +64,15 @@ def update_output(n_clicks_next, n_clicks_prev, n_events, figure):
 
     following = 'following-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
     previous = 'previous-button.n_clicks' in [p['prop_id'] for p in dash.callback_context.triggered][0]
-    n_events = int(n_events)
+
     fig = go.Figure(figure)
+
+    try:
+        n_events = int(n_events)
+    except TypeError:
+        n_events = evid
+        return fig, True, n_events
+
 
     if following:
         n_events += 1
@@ -256,6 +263,7 @@ def run_display(input_file, detector_properties, pixel_layout):
                               type='number',
                               placeholder="0",
                               value="0",
+                              debounce=True,
                               style={'width': '5em', 'display': 'inline-block', 'margin-right': '0.5em', 'margin-left': '0.5em'}),
                     html.Div(children=f'/{len(event_dividers)-2}', style={'margin-right': '1em','display':'inline-block','text-align':'center'}),
                     dbc.Button('>', id='following-button', n_clicks=0, color="primary")
