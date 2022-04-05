@@ -55,20 +55,17 @@ def get_continuous_color(colorscale, intermed):
 
 COLORSCALE = plotly.colors.make_colorscale(plotly.colors.convert_colors_to_same_type(plotly.colors.sequential.Viridis)[0])
 
-
-color_dict = {11: '#3f90da',
-              -11: '#92dadd',
-              13: '#b2df8a',
-              -13: '#33a02c',
-              22: '#b15928',
-              2212: '#bd1f01',
-              -2212: '#e76300',
-              -211: '#cab2d6',
-              211: '#6a3d9a',
-              2112: '#555555',
-              1000010020: 'blue'}
-
-color_dict = defaultdict(lambda: 'gray', color_dict)
+COLOR_DICT = defaultdict(lambda: 'gray', {11: '#3f90da',
+                                          -11: '#92dadd',
+                                          13: '#b2df8a',
+                                          -13: '#33a02c',
+                                          22: '#b15928',
+                                          2212: '#bd1f01',
+                                          -2212: '#e76300',
+                                          -211: '#cab2d6',
+                                          211: '#6a3d9a',
+                                          2112: '#555555',
+                                          1000010020: 'blue'})
 
 def plot_geometry():
     drawn_objects = []
@@ -166,12 +163,12 @@ def plot_light(geometry, n_photons):
                 else:
                     flip = -1
                 light_plane = dict(type='surface', y=xx, x=np.full(xx.shape, detector.TPC_BORDERS[ix][0][iside+flip]), z=zz,
-                                opacity=0.25,
-                                hoverinfo='text',
-                                text=f'Optical detector {opid}<br>{n_photons[opid]:.2f} photons',
-                                colorscale=light_color,
-                                showlegend=False,
-                                showscale=False)
+                                   opacity=0.25,
+                                   hoverinfo='text',
+                                   text=f'Optical detector {opid}<br>{n_photons[opid]:.2f} photons',
+                                   colorscale=light_color,
+                                   showlegend=False,
+                                   showscale=False)
                 if round(n_photons[opid]) > 1:
                     drawn_objects.append(light_plane)
 
@@ -194,7 +191,7 @@ def plot_hits(geometry, event_packets, start_packet, last_trigger):
         y_offset = geometry.tpc_offsets[module_id][1]
 
         io_group = io_group - (io_group-1)//4*4
-        x,y = geometry.geometry[(io_group, io_channel, chip, channel)]
+        x, y = geometry.geometry[(io_group, io_channel, chip, channel)]
         hits[0].append(x/10 + x_offset)
         hits[1].append(y/10 + y_offset)
         hits[2].append(geometry.get_z_coordinate(io_group, io_channel, packet['timestamp']-last_trigger)/10+z_offset)
@@ -240,7 +237,7 @@ def plot_tracks(tracks, track_ids, n_events):
                             customdata=['track_%i' % itrk],
                             showlegend=track['pdgId'] not in pdgs,
                             line=dict(
-                                color=color_dict[track['pdgId']],
+                                color=COLOR_DICT[track['pdgId']],
                                 width=12
                             ))
         if track['pdgId'] not in pdgs:
@@ -330,4 +327,3 @@ class DetectorGeometry():
             return np.nan
 
         return tile_id
-
