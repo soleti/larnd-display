@@ -247,8 +247,7 @@ def run_display(detector_properties, pixel_layout):
                                      showgrid=False,
                                      showspikes=False,
                                      title='y [mm]')))
-    image_filename = 'logo.png'
-    encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+
     app.layout = dbc.Container(
         fluid=True,
         style={'padding': '1.5em'},
@@ -273,7 +272,7 @@ def run_display(detector_properties, pixel_layout):
                     html.Span(pixel_layout, style={'font-family': 'monospace'}),
                 ]),
             ], width=9),
-            dbc.Col([html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()),
+            dbc.Col([html.Img(src='https://github.com/DUNE/larnd-display/raw/master/docs/logo.png',
                               style={'height':'8em'})], width=3, style={'text-align':'right'}),
             ]),
             dbc.Row([
