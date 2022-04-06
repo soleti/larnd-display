@@ -23,6 +23,6 @@ evd.py detector_properties.yaml pixel_layout.yaml
 
 where `detector_properties.yaml` is a YAML file containing the detector properties (as the ones [here](https://github.com/DUNE/larnd-sim/tree/master/larndsim/detector_properties)), and `pixel_layout.yaml` is a YAML file containing the pixel layout (as the ones in [here](https://github.com/DUNE/larnd-sim/tree/master/larndsim/pixel_layouts)).
 
-The event display will be available at the URL `http://localhost:8000/` and should like the screenshot below (for a Module0-like detector):
+The event display will be available at the URL[http://localhost:8000/](http://localhost:8000/) and should like the screenshot below (for a Module0-like detector):
 
 <img src='https://github.com/soleti/larnd-display/raw/main/docs/screenshot.png' width='100%'/>
