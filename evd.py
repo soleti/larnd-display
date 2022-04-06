@@ -272,7 +272,7 @@ def run_display(detector_properties, pixel_layout):
                     html.Span(pixel_layout, style={'font-family': 'monospace'}),
                 ]),
             ], width=9),
-            dbc.Col([html.Img(src='https://github.com/DUNE/larnd-display/raw/master/docs/logo.png',
+            dbc.Col([html.Img(src='https://github.com/soleti/larnd-display/raw/main/docs/logo.png',
                               style={'height':'8em'})], width=3, style={'text-align':'right'}),
             ]),
             dbc.Row([
