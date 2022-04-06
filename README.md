@@ -25,4 +25,4 @@ where `detector_properties.yaml` is a YAML file containing the detector properti
 
 The event display will be available at the URL `http://localhost:8000/` and should like the screenshot below (for a Module0-like detector):
 
-<img src='https://github.com/DUNE/larnd-display/raw/master/docs/screenshot.png' width='100%'/>
+<img src='https://github.com/soleti/larnd-display/raw/main/docs/screenshot.png' width='100%'/>
