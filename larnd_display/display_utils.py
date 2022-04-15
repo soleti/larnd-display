@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import yaml
 
@@ -5,8 +7,6 @@ from particle import Particle
 
 from larndsim import consts
 from larndsim.consts import detector
-
-from collections import defaultdict
 
 import plotly.graph_objects as go
 
