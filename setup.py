@@ -13,13 +13,24 @@ setuptools.setup(
     url="https://github.com/soleti/larnd-display",
     packages=setuptools.find_packages(),
     scripts=["evd.py"],
-    install_requires=["h5py", "dash", "numpy", "plotly", "fire", "pyyaml", "particle", "dash-bootstrap-components"],
+    install_requires=[
+        "h5py",
+        "dash",
+        "numpy",
+        "plotly",
+        "fire",
+        "pyyaml",
+        "particle",
+        "dash-uploader",
+        "dash-extensions",
+        "dash-bootstrap-components",
+    ],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: by End-User Class :: Developers",
         "Operating System :: Grouping and Descriptive Categories :: OS Independent (Written in an interpreted language)",
         "Programming Language :: Python",
-        "Topic :: Scientific/Engineering :: Physics"
+        "Topic :: Scientific/Engineering :: Physics",
     ],
-    python_requires='>=3.7',
+    python_requires=">=3.7",
 )
