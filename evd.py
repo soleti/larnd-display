@@ -87,6 +87,7 @@ def draw_event(filename, event_id):
         Output("event-display", "figure"),
         Output("alert-auto", "is_open"),
         Output("event-id", "data"),
+        Output("input-evid", "value"),
     ],
     Input("input-evid", "value"),
     [
@@ -99,29 +100,29 @@ def update_output(event_id, event_dividers, figure, filename):
     fig = go.Figure(figure)
 
     if event_dividers is None:
-        return fig, False, 0
+        return fig, False, 0, 0
 
     try:
         event_id = int(event_id)
     except KeyError:
         print("Invalid event id")
-        return fig, False, event_id
+        return fig, False, event_id, event_id
 
     show_alert = False
     if event_id >= len(event_dividers) - 1:
         event_id = len(event_dividers) - 2
         show_alert = True
-        return fig, True, event_id
+        return fig, True, event_id, event_id
 
     if event_id < 0:
         event_id = 0
         show_alert = True
-        return fig, True, event_id
+        return fig, True, event_id, event_id
 
     fig.data = []
     fig.add_traces(draw_event(filename, event_id))
 
-    return fig, show_alert, event_id
+    return fig, show_alert, event_id, event_id
 
 
 @app.callback(
@@ -130,7 +131,7 @@ def update_output(event_id, event_dividers, figure, filename):
         Output("time-histogram", "figure"),
         Output("time-histogram", "style"),
     ],
-    Input("input-evid", "value"),
+    Input("event-id", "data"),
     [State("event-dividers", "data"), State("filename", "data")],
 )
 def histogram(event_id, event_dividers, filename):
@@ -267,7 +268,6 @@ def update_total_events(modified_timestamp, event_dividers):
 
     return f"/ {total_events}"
 
-
 @app.callback(
     Output("input-evid", "value"),
     Input("event-id", "modified_timestamp"),
@@ -280,15 +280,14 @@ def update_event_id(modified_timestamp, event_id):
     event_id = event_id or 0
     return int(event_id)
 
-
 @app.callback(
     [
         Output("filename", "data"),
         Output("event-dividers", "data"),
         Output("event-id", "data"),
     ],
+    Input("select-file", "isCompleted"),
     [
-        Input("select-file", "isCompleted"),
         State("filename", "data"),
         State("event-dividers", "data"),
         State("select-file", "fileNames"),
@@ -417,6 +416,12 @@ def run_display(detector_properties, pixel_layout):
                                     "text-align": "center",
                                 },
                             ),
+                            dbc.Alert(
+                                "You have reached the end of the file",
+                                id="alert-auto",
+                                is_open=False,
+                                color="warning",
+                            ),
                         ],
                         width=7,
                     ),
@@ -431,17 +436,6 @@ def run_display(detector_properties, pixel_layout):
                         style={"text-align": "right"},
                     ),
                 ]
-            ),
-            dbc.Row(
-                [
-                    dbc.Alert(
-                        "You have reached the end of the file",
-                        id="alert-auto",
-                        is_open=False,
-                        color="warning",
-                    ),
-                ],
-                style={"padding-left": "0.2em"},
             ),
             dbc.Row(
                 [
