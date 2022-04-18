@@ -16,6 +16,7 @@ import numpy as np
 
 import dash_bootstrap_components as dbc
 import dash_uploader as du
+from dash import no_update
 from dash import dcc
 from dash import html
 from dash.exceptions import PreventUpdate
@@ -48,6 +49,7 @@ app = DashProxy(
 
 
 def draw_event(filename, event_id):
+    """Draw 3D event display of event"""
     with h5py.File(filename, "r") as datalog:
         tracks = datalog["tracks"]
         packets = datalog["packets"]
@@ -97,6 +99,7 @@ def draw_event(filename, event_id):
     ],
 )
 def update_output(event_id, event_dividers, figure, filename):
+    """Update 3D event display end event id"""
     fig = go.Figure(figure)
 
     if event_dividers is None:
@@ -125,6 +128,71 @@ def update_output(event_id, event_dividers, figure, filename):
     return fig, show_alert, event_id, event_id
 
 
+@app.callback(Output("light-waveform", "style"), Input("event-id", "data"))
+def reset_light(_):
+    """Clean the light waveform plot when changing event"""
+    return {"display": "none"}
+
+
+@app.callback(
+    [Output("light-waveform", "figure"), Output("light-waveform", "style")],
+    Input("event-display", "clickData"),
+    [
+        State("event-display", "figure"),
+        State("event-id", "data"),
+        State("event-dividers", "data"),
+        State("filename", "data"),
+    ],
+)
+def light_waveform(click_data, _, event_id, event_dividers, filename):
+    """Plot the light waveform for the selected event on the clicked optical detector"""
+    if (
+        click_data
+        and "id" in click_data["points"][0]
+        and "opid" in click_data["points"][0]["id"]
+    ):
+        opid = int(click_data["points"][0]["id"].split("_")[1])
+        start_packet = event_dividers[event_id]
+
+        with h5py.File(filename, "r") as datalog:
+            if "light_wvfm" not in datalog.keys():
+                return go.Figure(), dict(display="none")
+
+            packets = datalog["packets"]
+            start_t = packets[start_packet]["timestamp"]
+            light_index = np.argwhere(datalog["light_trig"]["ts_sync"] == start_t)[0][0]
+            fig = go.Figure(
+                go.Scatter(
+                    x=np.arange(0, 256), y=datalog["light_wvfm"][light_index][opid]
+                ),
+                layout=dict(
+                    title=f"Optical detector {opid}",
+                    margin=dict(l=0, r=0, t=60),
+                    showlegend=False,
+                    template="plotly_white",
+                ),
+            )
+
+            fig.update_xaxes(
+                linecolor="lightgray",
+                matches="x",
+                mirror=True,
+                ticks="outside",
+                showline=True,
+            )
+            fig.update_yaxes(
+                linecolor="lightgray",
+                matches="y",
+                mirror=True,
+                ticks="outside",
+                showline=True,
+            )
+
+            return fig, dict(display="block", height="300px")
+
+    return no_update, no_update
+
+
 @app.callback(
     [
         Output("object-information", "children"),
@@ -134,7 +202,8 @@ def update_output(event_id, event_dividers, figure, filename):
     Input("event-id", "data"),
     [State("event-dividers", "data"), State("filename", "data")],
 )
-def histogram(event_id, event_dividers, filename):
+def adc_histogram(event_id, event_dividers, filename):
+    """Plot histogram of the adc counts for each drift volume"""
     if event_dividers is not None:
         start_packet = event_dividers[event_id]
         end_packet = event_dividers[event_id + 1]
@@ -188,7 +257,7 @@ def histogram(event_id, event_dividers, filename):
                 shared_yaxes=True,
             )
 
-            for im, module_id in enumerate(active_modules):
+            for i_module_id, module_id in enumerate(active_modules):
                 query = (event_packets["io_group"] - 1) // 4 == module_id
 
                 histo1 = go.Histogram(
@@ -200,14 +269,15 @@ def histogram(event_id, event_dividers, filename):
                     xbins=dict(start=0, end=3200, size=20),
                 )
 
-                histos.append_trace(histo1, im + 1, 1)
-                histos.append_trace(histo2, im + 1, 2)
+                histos.append_trace(histo1, i_module_id + 1, 1)
+                histos.append_trace(histo2, i_module_id + 1, 2)
 
             histos.update_annotations(font_size=12)
             histos.update_layout(
-                margin=dict(l=0, r=0, t=30, b=10),
+                margin=dict(l=0, r=0, t=50, b=60),
                 showlegend=False,
                 template="plotly_white",
+                title_text="ADC histograms",
             )
             histos.update_xaxes(title_text="Time [timestamp]", row=len(active_modules))
             histos.update_xaxes(
@@ -227,7 +297,7 @@ def histogram(event_id, event_dividers, filename):
             subplots_height = "%fvh" % (len(active_modules) * 22 + 5)
             return "", histos, dict(height=subplots_height, display="block")
 
-    return "", go.Figure(), dict(display="none")
+    return no_update, no_update, no_update
 
 
 @app.callback(
@@ -236,6 +306,7 @@ def histogram(event_id, event_dividers, filename):
     State("filename", "data"),
 )
 def update_filename(modified_timestamp, filename):
+    """Update the filename text"""
     if modified_timestamp is None:
         raise PreventUpdate
 
@@ -258,6 +329,7 @@ def update_filename(modified_timestamp, filename):
     State("event-dividers", "data"),
 )
 def update_total_events(modified_timestamp, event_dividers):
+    """Update the total number of events text"""
     if modified_timestamp is None:
         raise PreventUpdate
 
@@ -268,17 +340,20 @@ def update_total_events(modified_timestamp, event_dividers):
 
     return f"/ {total_events}"
 
+
 @app.callback(
     Output("input-evid", "value"),
     Input("event-id", "modified_timestamp"),
     State("event-id", "data"),
 )
 def update_event_id(modified_timestamp, event_id):
+    """Update the event id input box with the current event id"""
     if modified_timestamp is None:
         raise PreventUpdate
 
     event_id = event_id or 0
     return int(event_id)
+
 
 @app.callback(
     [
@@ -295,7 +370,7 @@ def update_event_id(modified_timestamp, event_id):
     ],
 )
 def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
-
+    """Upload HDF5 file to cache"""
     if not is_completed:
         return filename, event_dividers, 0
 
@@ -319,6 +394,7 @@ def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
 
 
 def run_display(detector_properties, pixel_layout):
+    """Create layout and run Dash app"""
     global MY_GEOMETRY
 
     MY_GEOMETRY = DetectorGeometry(detector_properties, pixel_layout)
@@ -379,7 +455,7 @@ def run_display(detector_properties, pixel_layout):
                                 filetypes=["h5"],
                             ),
                         ],
-                        width=2,
+                        width=3,
                     ),
                     dbc.Col(
                         [
@@ -423,7 +499,7 @@ def run_display(detector_properties, pixel_layout):
                                 color="warning",
                             ),
                         ],
-                        width=7,
+                        width=6,
                     ),
                     dbc.Col(
                         [
@@ -457,6 +533,9 @@ def run_display(detector_properties, pixel_layout):
                                     html.P(id="object-information"),
                                     dcc.Graph(
                                         id="time-histogram", style={"display": "none"}
+                                    ),
+                                    dcc.Graph(
+                                        id="light-waveform", style={"display": "none"}
                                     ),
                                 ]
                             )

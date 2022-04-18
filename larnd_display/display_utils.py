@@ -1,3 +1,5 @@
+"""Utilities module used by the event display"""
+
 from collections import defaultdict
 
 import numpy as np
@@ -68,6 +70,7 @@ COLOR_DICT = defaultdict(lambda: 'gray', {11: '#3f90da',
                                           1000010020: 'blue'})
 
 def plot_geometry():
+    """Plot detector geometry"""
     drawn_objects = []
 
     for ix in range(0,detector.TPC_BORDERS.shape[0],2):
@@ -137,6 +140,7 @@ def plot_geometry():
     return drawn_objects
 
 def plot_light(geometry, n_photons):
+    """Plot optical detectors"""
     drawn_objects = []
     ys = np.array([-595.43, -545.68, -490.48, -440.73, -385.53, -335.78,
                    -283.65, -236.65, -178.70, -131.70, -73.75, -26.75,
@@ -162,9 +166,11 @@ def plot_light(geometry, n_photons):
                     flip = 0
                 else:
                     flip = -1
+                opid_str = f"opid_{opid}"
                 light_plane = dict(type='surface', y=xx, x=np.full(xx.shape, detector.TPC_BORDERS[ix][0][iside+flip]), z=zz,
                                    opacity=0.25,
                                    hoverinfo='text',
+                                   ids=[[opid_str, opid_str], [opid_str, opid_str]],
                                    text=f'Optical detector {opid}<br>{n_photons[opid]:.2f} photons',
                                    colorscale=light_color,
                                    showlegend=False,
@@ -175,6 +181,7 @@ def plot_light(geometry, n_photons):
     return drawn_objects
 
 def plot_hits(geometry, event_packets, start_packet, last_trigger):
+    """Plot 3D hits starting from packet information"""
     hits = [[], [], []]
     hits_index = []
     hits_charge = []
@@ -218,6 +225,7 @@ def plot_hits(geometry, event_packets, start_packet, last_trigger):
     return drawn_objects
 
 def plot_tracks(tracks, track_ids, n_events):
+    """Plot 3D tracks starting from MC truth information"""
     pdgs = []
     drawn_objects = []
     for itrk in track_ids:
@@ -248,6 +256,8 @@ def plot_tracks(tracks, track_ids, n_events):
 
 
 class DetectorGeometry():
+    """Class describing the geometry of the Detector"""
+
     def __init__(self, detector_properties, pixel_layout):
         self.detector_properties = detector_properties
         self.pixel_layout = pixel_layout
