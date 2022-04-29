@@ -32,5 +32,5 @@ setuptools.setup(
         "Programming Language :: Python",
         "Topic :: Scientific/Engineering :: Physics",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
 )

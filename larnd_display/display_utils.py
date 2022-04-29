@@ -196,7 +196,6 @@ def plot_hits(geometry, event_packets, start_packet, last_trigger):
         z_offset = geometry.tpc_offsets[module_id][0]
         x_offset = geometry.tpc_offsets[module_id][2]
         y_offset = geometry.tpc_offsets[module_id][1]
-
         io_group = io_group - (io_group-1)//4*4
         x, y = geometry.geometry[(io_group, io_channel, chip, channel)]
         hits[0].append(x/10 + x_offset)

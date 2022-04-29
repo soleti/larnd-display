@@ -36,6 +36,8 @@ from larnd_display.display_utils import (
 
 MY_GEOMETRY = None
 UPLOAD_FOLDER_ROOT = "cache"
+DOCKER_MOUNTED_FOLDER = "/mnt/data/"
+CORI_FOLDER = "/global/cfs/cdirs/dune/www/data/"
 
 app = DashProxy(
     prevent_initial_callbacks=True,
@@ -51,9 +53,7 @@ app = DashProxy(
 def draw_event(filename, event_id):
     """Draw 3D event display of event"""
     with h5py.File(filename, "r") as datalog:
-        tracks = datalog["tracks"]
         packets = datalog["packets"]
-        mc_packets = datalog["mc_packets_assn"]
 
         trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
         event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
@@ -62,15 +62,20 @@ def draw_event(filename, event_id):
         start_packet = event_dividers[event_id]
         end_packet = event_dividers[event_id + 1]
 
-        track_ids = np.unique(mc_packets[start_packet:end_packet]["track_ids"])[1:]
         last_trigger = packets[start_packet]["timestamp"]
         event_packets = packets[start_packet:end_packet]
         drawn_objects = plot_hits(
             MY_GEOMETRY, event_packets, start_packet, last_trigger
         )
-        drawn_objects.extend(
-            plot_tracks(tracks, range(track_ids[0], track_ids[-1]), event_id)
-        )
+
+        if "tracks" and "mc_packets_assn" in datalog.keys():
+            tracks = datalog["tracks"]
+            mc_packets = datalog["mc_packets_assn"]
+            track_ids = np.unique(mc_packets[start_packet:end_packet]["track_ids"])[1:]
+            drawn_objects.extend(
+                plot_tracks(tracks, range(track_ids[0], track_ids[-1]), event_id)
+            )
+
         drawn_objects.extend(plot_geometry())
 
         if "light_dat" in datalog.keys():
@@ -244,18 +249,19 @@ def adc_histogram(event_id, event_dividers, filename):
 
                 active_modules.append(module_id)
 
-            histos = subplots.make_subplots(
-                rows=len(active_modules),
-                cols=2,
-                subplot_titles=[
-                    "(%i,%i)" % (m + 1, p + 1) for m in active_modules for p in range(2)
-                ],
-                vertical_spacing=0.25 / len(active_modules)
-                if len(active_modules)
-                else 0,
-                shared_xaxes=True,
-                shared_yaxes=True,
-            )
+            if active_modules:
+                histos = subplots.make_subplots(
+                    rows=len(active_modules),
+                    cols=2,
+                    subplot_titles=[
+                        "(%i,%i)" % (m + 1, p + 1) for m in active_modules for p in range(2)
+                    ],
+                    vertical_spacing=0.25 / len(active_modules)
+                    if len(active_modules)
+                    else 0,
+                    shared_xaxes=True,
+                    shared_yaxes=True,
+                )
 
             for i_module_id, module_id in enumerate(active_modules):
                 query = (event_packets["io_group"] - 1) // 4 == module_id
@@ -354,6 +360,46 @@ def update_event_id(modified_timestamp, event_id):
     event_id = event_id or 0
     return int(event_id)
 
+@app.callback(
+    [
+        Output("filename", "data"),
+        Output("event-dividers", "data"),
+        Output("event-id", "data"),
+        Output("alert-file-not-found", "is_open"),
+        Output("alert-file-not-found", "children"),
+    ],
+    Input("server-filename", "value"),
+    [
+        State("filepath", "children"),
+        State("filename", "data"),
+        State("event-dividers", "data"),
+    ],
+)
+def select_file(input_filename, filepath, filename, event_dividers):
+    """Upload HDF5 file to cache"""
+
+    try:
+        if filepath == CORI_FOLDER:
+            load_filepath = DOCKER_MOUNTED_FOLDER
+        else:
+            load_filepath = filepath
+
+        if input_filename[0] == "/":
+            input_filename = input_filename[1:]
+
+        h5_file = Path(load_filepath) / input_filename
+        datalog = h5py.File(h5_file, "r")
+    except FileNotFoundError:
+        print(h5_file, "not found")
+        return filename, event_dividers, 0, True, f"File {filepath}{input_filename} not found"
+
+    packets = datalog["packets"]
+
+    trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
+    event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
+    event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
+
+    return str(h5_file), event_dividers, 0, False, ""
 
 @app.callback(
     [
@@ -393,14 +439,20 @@ def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
     return filename, event_dividers, 0
 
 
-def run_display(detector_properties, pixel_layout):
+def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, filepath="."):
     """Create layout and run Dash app"""
     global MY_GEOMETRY
+
+    if filepath[-1] != "/":
+        filepath += "/"
 
     MY_GEOMETRY = DetectorGeometry(detector_properties, pixel_layout)
 
     fig = go.Figure(plot_geometry())
     camera = dict(eye=dict(x=-2, y=0.3, z=1.1))
+
+    z_min = min([MY_GEOMETRY.tile_positions[t][0] for t in MY_GEOMETRY.tile_positions])/10
+    z_max = max([MY_GEOMETRY.tile_positions[t][0] for t in MY_GEOMETRY.tile_positions])/10
 
     fig.update_layout(
         scene_camera=camera,
@@ -419,6 +471,7 @@ def run_display(detector_properties, pixel_layout):
                 showgrid=False,
                 showspikes=False,
                 title="z [mm]",
+                range=(z_min, z_max)
             ),
             zaxis=dict(
                 backgroundcolor="white",
@@ -445,7 +498,7 @@ def run_display(detector_properties, pixel_layout):
                                 id="select-file",
                                 text="Drag and drop or click here to upload",
                                 max_file_size=10000,
-                                chunk_size=50,
+                                chunk_size=0.5,
                                 default_style={
                                     "width": "15em",
                                     "padding": "0",
@@ -456,6 +509,39 @@ def run_display(detector_properties, pixel_layout):
                             ),
                         ],
                         width=3,
+                    ),
+                    dbc.Col(
+                        [
+                            html.P(
+                                children=["Or specify existing file path here:"],
+                                style={"margin": "1em 0 0 0"},
+                            ),
+                            html.P(
+                                children=filepath,
+                                id="filepath",
+                                style={
+                                    "display": "inline-block",
+                                    "font-family": "monospace"
+                                },
+                            ),
+                            dcc.Input(
+                                id="server-filename",
+                                type="text",
+                                style={
+                                    "font-family": "monospace"
+                                },
+                                placeholder="enter file path here...",
+                                debounce=True
+                            ),
+                            dbc.Alert(
+                                children=["File not found"],
+                                id="alert-file-not-found",
+                                is_open=False,
+                                duration=3000,
+                                color="warning",
+                            ),
+                        ],
+                        width=4,
                     ),
                     dbc.Col(
                         [
@@ -499,16 +585,16 @@ def run_display(detector_properties, pixel_layout):
                                 color="warning",
                             ),
                         ],
-                        width=6,
+                        width=3,
                     ),
                     dbc.Col(
                         [
                             html.Img(
                                 src="https://github.com/soleti/larnd-display/raw/main/docs/logo.png",
-                                style={"height": "8em"},
+                                style={"height": "6em"},
                             )
                         ],
-                        width=3,
+                        width=1,
                         style={"text-align": "right"},
                     ),
                 ]
@@ -547,7 +633,7 @@ def run_display(detector_properties, pixel_layout):
         ],
     )
 
-    app.run_server(port=8000, host="127.0.0.1")
+    app.run_server(port=port, host=host)
 
     return app
 
@@ -559,7 +645,7 @@ def clean_cache():
         print("Cleaning cache...")
         shutil.rmtree(UPLOAD_FOLDER_ROOT)
     except OSError as err:
-        print("Error: %s : %s" % (UPLOAD_FOLDER_ROOT, err.strerror))
+        print("Can't clean %s : %s" % (UPLOAD_FOLDER_ROOT, err.strerror))
 
 
 if __name__ == "__main__":
