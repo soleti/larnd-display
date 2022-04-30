@@ -142,10 +142,10 @@ def plot_geometry():
 def plot_light(geometry, n_photons):
     """Plot optical detectors"""
     drawn_objects = []
-    ys = np.array([-595.43, -545.68, -490.48, -440.73, -385.53, -335.78,
-                   -283.65, -236.65, -178.70, -131.70, -73.75, -26.75,
-                   25.38, 75.13, 130.33, 180.08, 235.28, 285.03, 337.15,
-                   384.15, 442.10, 489.10, 547.05, 594.05])/10
+    ys = np.flip(np.array([-595.43, -545.68, -490.48, -440.73, -385.53, -335.78,
+                           -283.65, -236.65, -178.70, -131.70, -73.75, -26.75,
+                           25.38, 75.13, 130.33, 180.08, 235.28, 285.03, 337.15,
+                           384.15, 442.10, 489.10, 547.05, 594.05])/10)
     light_width = ys[1]-ys[0]
 
     for ix in range(0,detector.TPC_BORDERS.shape[0]):
@@ -236,12 +236,12 @@ def plot_tracks(tracks, track_ids, n_events):
                             z=np.linspace(track['y_start'], track['y_end'], 5),
                             mode='lines',
                             hoverinfo='text',
-                            name=r'$%s$' % latex_name,
-                            text='%s<br>trackId: %i' % (html_name, itrk),
+                            name=f'{html_name}',
+                            text=f'{html_name}<br>trackId: {itrk}',
                             opacity=0.3,
-                            legendgroup='%i_%i' % (n_events,track['pdgId']),
+                            legendgroup=f"{n_events}_{track['pdgId']}",
                             # legendgrouptitle_text=r'$%s$' % latex_name,
-                            customdata=['track_%i' % itrk],
+                            customdata=[f'track_{itrk}'],
                             showlegend=track['pdgId'] not in pdgs,
                             line=dict(
                                 color=COLOR_DICT[track['pdgId']],

@@ -38,6 +38,7 @@ MY_GEOMETRY = None
 UPLOAD_FOLDER_ROOT = "cache"
 DOCKER_MOUNTED_FOLDER = "/mnt/data/"
 CORI_FOLDER = "/global/cfs/cdirs/dune/www/data/"
+EVENT_BUFFER = 2000 # maximum difference in timeticks between hit and trigger
 
 app = DashProxy(
     prevent_initial_callbacks=True,
@@ -45,6 +46,7 @@ app = DashProxy(
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     external_scripts=[
         "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-MML-AM_CHTML",
+        # "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
     ],
     title="LArPix event display",
 )
@@ -64,6 +66,8 @@ def draw_event(filename, event_id):
 
         last_trigger = packets[start_packet]["timestamp"]
         event_packets = packets[start_packet:end_packet]
+        within_buffer = event_packets["timestamp"] - last_trigger < EVENT_BUFFER
+        event_packets = event_packets[within_buffer]
         drawn_objects = plot_hits(
             MY_GEOMETRY, event_packets, start_packet, last_trigger
         )
@@ -71,7 +75,7 @@ def draw_event(filename, event_id):
         if "tracks" and "mc_packets_assn" in datalog.keys():
             tracks = datalog["tracks"]
             mc_packets = datalog["mc_packets_assn"]
-            track_ids = np.unique(mc_packets[start_packet:end_packet]["track_ids"])[1:]
+            track_ids = np.unique(mc_packets[start_packet:end_packet][within_buffer]["track_ids"])[1:]
             drawn_objects.extend(
                 plot_tracks(tracks, range(track_ids[0], track_ids[-1]), event_id)
             )
@@ -384,7 +388,7 @@ def select_file(input_filename, filepath, filename, event_dividers):
         else:
             load_filepath = filepath
 
-        if input_filename[0] == "/":
+        if len(input_filename) > 0 and input_filename[0] == "/":
             input_filename = input_filename[1:]
 
         h5_file = Path(load_filepath) / input_filename
@@ -392,6 +396,9 @@ def select_file(input_filename, filepath, filename, event_dividers):
     except FileNotFoundError:
         print(h5_file, "not found")
         return filename, event_dividers, 0, True, f"File {filepath}{input_filename} not found"
+    except (IsADirectoryError, OSError) as err:
+        print(h5_file, "invalid file", err)
+        return filename, event_dividers, 0, True, f"File {filepath}{input_filename} is not a valid file"
 
     packets = datalog["packets"]
 
@@ -451,9 +458,6 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
     fig = go.Figure(plot_geometry())
     camera = dict(eye=dict(x=-2, y=0.3, z=1.1))
 
-    z_min = min([MY_GEOMETRY.tile_positions[t][0] for t in MY_GEOMETRY.tile_positions])/10
-    z_max = max([MY_GEOMETRY.tile_positions[t][0] for t in MY_GEOMETRY.tile_positions])/10
-
     fig.update_layout(
         scene_camera=camera,
         uirevision=True,
@@ -471,7 +475,6 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                 showgrid=False,
                 showspikes=False,
                 title="z [mm]",
-                range=(z_min, z_max)
             ),
             zaxis=dict(
                 backgroundcolor="white",
@@ -484,7 +487,13 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
 
     app.layout = dbc.Container(
         fluid=True,
-        style={"padding": "1.5em"},
+        style={
+            "padding": "1.5em",
+            "background-image": "url('https://github.com/soleti/larnd-display/raw/main/docs/logo.png')",
+            "background-size": "74px 54px",
+            "background-position": "right 1em top 1em",
+            "background-repeat": "no-repeat",
+        },
         children=[
             dcc.Store(id="filename", storage_type="session"),
             dcc.Store(id="event-id", storage_type="session"),
@@ -541,7 +550,7 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                                 color="warning",
                             ),
                         ],
-                        width=4,
+                        width=6,
                     ),
                     dbc.Col(
                         [
@@ -586,16 +595,6 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                             ),
                         ],
                         width=3,
-                    ),
-                    dbc.Col(
-                        [
-                            html.Img(
-                                src="https://github.com/soleti/larnd-display/raw/main/docs/logo.png",
-                                style={"height": "6em"},
-                            )
-                        ],
-                        width=1,
-                        style={"text-align": "right"},
                     ),
                 ]
             ),
