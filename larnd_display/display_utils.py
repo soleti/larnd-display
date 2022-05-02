@@ -229,7 +229,6 @@ def plot_tracks(tracks, track_ids, n_events):
     drawn_objects = []
     for itrk in track_ids:
         track = tracks[itrk]
-        latex_name = Particle.from_pdgid(track['pdgId']).latex_name
         html_name = Particle.from_pdgid(track['pdgId']).html_name.replace('&pi;','&#960;').replace('&gamma;','&#947;')
         line = go.Scatter3d(x=np.linspace(track['x_start'], track['x_end'], 5),
                             y=np.linspace(track['z_start'], track['z_end'], 5),
@@ -240,7 +239,7 @@ def plot_tracks(tracks, track_ids, n_events):
                             text=f'{html_name}<br>trackId: {itrk}',
                             opacity=0.3,
                             legendgroup=f"{n_events}_{track['pdgId']}",
-                            # legendgrouptitle_text=r'$%s$' % latex_name,
+                            # legendgrouptitle_text=r'$%s$' % html_name,
                             customdata=[f'track_{itrk}'],
                             showlegend=track['pdgId'] not in pdgs,
                             line=dict(

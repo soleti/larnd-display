@@ -253,6 +253,7 @@ def adc_histogram(event_id, event_dividers, filename):
 
                 active_modules.append(module_id)
 
+            histos = None
             if active_modules:
                 histos = subplots.make_subplots(
                     rows=len(active_modules),
@@ -278,34 +279,35 @@ def adc_histogram(event_id, event_dividers, filename):
                     x=event_packets["timestamp"][(anodes == 1) & query] - start_t,
                     xbins=dict(start=0, end=3200, size=20),
                 )
+                if histos:
+                    histos.append_trace(histo1, i_module_id + 1, 1)
+                    histos.append_trace(histo2, i_module_id + 1, 2)
 
-                histos.append_trace(histo1, i_module_id + 1, 1)
-                histos.append_trace(histo2, i_module_id + 1, 2)
-
-            histos.update_annotations(font_size=12)
-            histos.update_layout(
-                margin=dict(l=0, r=0, t=50, b=60),
-                showlegend=False,
-                template="plotly_white",
-                title_text="ADC histograms",
-            )
-            histos.update_xaxes(title_text="Time [timestamp]", row=len(active_modules))
-            histos.update_xaxes(
-                linecolor="lightgray",
-                matches="x",
-                mirror=True,
-                ticks="outside",
-                showline=True,
-            )
-            histos.update_yaxes(
-                linecolor="lightgray",
-                matches="y",
-                mirror=True,
-                ticks="outside",
-                showline=True,
-            )
-            subplots_height = "%fvh" % (len(active_modules) * 22 + 5)
-            return "", histos, dict(height=subplots_height, display="block")
+            if histos:
+                histos.update_annotations(font_size=12)
+                histos.update_layout(
+                    margin=dict(l=0, r=0, t=50, b=60),
+                    showlegend=False,
+                    template="plotly_white",
+                    title_text="ADC histograms",
+                )
+                histos.update_xaxes(title_text="Time [timestamp]", row=len(active_modules))
+                histos.update_xaxes(
+                    linecolor="lightgray",
+                    matches="x",
+                    mirror=True,
+                    ticks="outside",
+                    showline=True,
+                )
+                histos.update_yaxes(
+                    linecolor="lightgray",
+                    matches="y",
+                    mirror=True,
+                    ticks="outside",
+                    showline=True,
+                )
+                subplots_height = "%fvh" % (len(active_modules) * 22 + 5)
+                return "", histos, dict(height=subplots_height, display="block")
 
     return no_update, no_update, no_update
 
@@ -361,8 +363,10 @@ def update_event_id(modified_timestamp, event_id):
     if modified_timestamp is None:
         raise PreventUpdate
 
-    event_id = event_id or 0
-    return int(event_id)
+    try:
+        return int(event_id)
+    except TypeError:
+        raise PreventUpdate
 
 @app.callback(
     [
@@ -374,12 +378,13 @@ def update_event_id(modified_timestamp, event_id):
     ],
     Input("server-filename", "value"),
     [
+        State("event-id", "data"),
         State("filepath", "children"),
         State("filename", "data"),
         State("event-dividers", "data"),
     ],
 )
-def select_file(input_filename, filepath, filename, event_dividers):
+def select_file(input_filename, event_id, filepath, filename, event_dividers):
     """Upload HDF5 file to cache"""
 
     try:
@@ -395,10 +400,12 @@ def select_file(input_filename, filepath, filename, event_dividers):
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:
         print(h5_file, "not found")
-        return filename, event_dividers, 0, True, f"File {filepath}{input_filename} not found"
-    except (IsADirectoryError, OSError) as err:
+        return filename, event_dividers, event_id, True, f"File {filepath}{input_filename} not found"
+    except IsADirectoryError:
+        return filename, event_dividers, event_id, False, ""
+    except OSError as err:
         print(h5_file, "invalid file", err)
-        return filename, event_dividers, 0, True, f"File {filepath}{input_filename} is not a valid file"
+        return filename, event_dividers, event_id, True, f"File {filepath}{input_filename} is not a valid file"
 
     packets = datalog["packets"]
 
@@ -413,6 +420,7 @@ def select_file(input_filename, filepath, filename, event_dividers):
         Output("filename", "data"),
         Output("event-dividers", "data"),
         Output("event-id", "data"),
+        Output("server-filename", "value")
     ],
     Input("select-file", "isCompleted"),
     [
@@ -441,9 +449,9 @@ def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
         event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
         event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
 
-        return str(h5_file), event_dividers, 0
+        return str(h5_file), event_dividers, 0, ""
 
-    return filename, event_dividers, 0
+    return filename, event_dividers, 0, ""
 
 
 def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, filepath="."):
@@ -489,7 +497,7 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
         fluid=True,
         style={
             "padding": "1.5em",
-            "background-image": "url('https://github.com/soleti/larnd-display/raw/main/docs/logo.png')",
+            "background-image": "url('%s')" % app.get_asset_url("logo.png"),
             "background-size": "74px 54px",
             "background-position": "right 1em top 1em",
             "background-repeat": "no-repeat",
@@ -540,6 +548,7 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                                     "font-family": "monospace"
                                 },
                                 placeholder="enter file path here...",
+                                size=28,
                                 debounce=True
                             ),
                             dbc.Alert(
@@ -570,7 +579,6 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                                 id="input-evid",
                                 type="number",
                                 placeholder="0",
-                                value="0",
                                 debounce=True,
                                 style={
                                     "width": "5em",
@@ -602,12 +610,12 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                 [
                     dbc.Col(
                         [
-                            dcc.Graph(
+                            dcc.Loading(dcc.Graph(
                                 id="event-display",
                                 figure=fig,
                                 clear_on_unhover=True,
                                 style={"height": "85vh"},
-                            )
+                            ))
                         ],
                         width=7,
                     ),
