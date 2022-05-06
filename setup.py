@@ -12,7 +12,7 @@ setuptools.setup(
     description="Event display for modular pixelated LArTPCs",
     url="https://github.com/soleti/larnd-display",
     packages=setuptools.find_packages(),
-    scripts=["evd.py"],
+    scripts=["evd.py", "ndlar_display.py"],
     install_requires=[
         "h5py",
         "dash",
