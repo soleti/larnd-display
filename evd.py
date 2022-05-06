@@ -37,7 +37,7 @@ from larnd_display.display_utils import (
 MY_GEOMETRY = None
 UPLOAD_FOLDER_ROOT = "cache"
 DOCKER_MOUNTED_FOLDER = "/mnt/data/"
-CORI_FOLDER = "/global/cfs/cdirs/dune/www/data/"
+CORI_FOLDER = "https://portal.nersc.gov/project/dune/data/"
 EVENT_BUFFER = 2000 # maximum difference in timeticks between hit and trigger
 
 app = DashProxy(
@@ -387,10 +387,14 @@ def update_event_id(modified_timestamp, event_id):
 def select_file(input_filename, event_id, filepath, filename, event_dividers):
     """Upload HDF5 file to cache"""
 
+    filepath_message = filepath
+
     try:
-        if filepath == CORI_FOLDER:
-            load_filepath = DOCKER_MOUNTED_FOLDER
-        else:
+        try:
+            if filepath['props']['children'] == CORI_FOLDER:
+                load_filepath = DOCKER_MOUNTED_FOLDER
+                filepath_message = CORI_FOLDER
+        except TypeError:
             load_filepath = filepath
 
         if len(input_filename) > 0 and input_filename[0] == "/":
@@ -400,12 +404,12 @@ def select_file(input_filename, event_id, filepath, filename, event_dividers):
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:
         print(h5_file, "not found")
-        return filename, event_dividers, event_id, True, f"File {filepath}{input_filename} not found"
+        return filename, event_dividers, event_id, True, f"File {filepath_message}{input_filename} not found"
     except IsADirectoryError:
         return filename, event_dividers, event_id, False, ""
     except OSError as err:
         print(h5_file, "invalid file", err)
-        return filename, event_dividers, event_id, True, f"File {filepath}{input_filename} is not a valid file"
+        return filename, event_dividers, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
 
     packets = datalog["packets"]
 
@@ -534,18 +538,20 @@ def run_display(detector_properties, pixel_layout, host="127.0.0.1", port=5000, 
                                 style={"margin": "1em 0 0 0"},
                             ),
                             html.P(
-                                children=filepath,
+                                children=html.A(href=filepath, children=filepath) if "https" in filepath else filepath,
                                 id="filepath",
                                 style={
                                     "display": "inline-block",
-                                    "font-family": "monospace"
+                                    "font-family": "monospace",
+                                    "font-size": "small",
                                 },
                             ),
                             dcc.Input(
                                 id="server-filename",
                                 type="text",
                                 style={
-                                    "font-family": "monospace"
+                                    "font-family": "monospace",
+                                    "font-size": "small"
                                 },
                                 placeholder="enter file path here...",
                                 size=28,

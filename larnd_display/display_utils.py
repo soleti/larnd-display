@@ -323,7 +323,6 @@ class DetectorGeometry():
 
     def get_z_coordinate(self, io_group, io_channel, time):
         tile_id = self.get_tile_id(io_group, io_channel)
-
         z_anode = self.tile_positions[tile_id][0]
         drift_direction = self.tile_orientations[tile_id][0]
         return z_anode + time * detector.V_DRIFT * drift_direction
