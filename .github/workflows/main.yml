@@ -22,4 +22,4 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tag: registry.nersc.gov/dune/larnd-display-docker
+          tags: registry.nersc.gov/dune/larnd-display-docker
