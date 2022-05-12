@@ -109,7 +109,7 @@ def plot_geometry(this_detector):
         z_cathode = (this_detector.tpc_borders[ix][2][0]+this_detector.tpc_borders[ix+1][2][0])/2
 
         cathode_plane=dict(type='surface', x=xx, y=np.full(xx.shape, z_cathode), z=zz,
-                           opacity=0.15,
+                           opacity=0.10,
                            hoverinfo='skip',
                            text='Cathode',
                            colorscale=single_color,

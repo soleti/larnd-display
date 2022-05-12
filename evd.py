@@ -135,9 +135,9 @@ def update_output(event_id, event_dividers, filename, geometry, do_plot_tracks, 
     try:
         fig.data = []
         fig.add_traces(draw_event(filename, GEOMETRIES[geometry], event_dividers, event_id, do_plot_tracks, do_plot_opids))
-    # except IndexError as err:
-    #     print("IndexError",err)
-    #     return fig, {"display": "none"}, True, no_update, no_update
+    except IndexError as err:
+        print("IndexError",err)
+        return fig, {"display": "none"}, True, no_update, no_update
     except KeyError as err:
         print("KeyError",err)
         return fig, {"display": "none"}, True, "Select a geometry first", no_update
