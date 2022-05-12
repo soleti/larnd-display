@@ -445,11 +445,9 @@ def update_geometry(modified_timestamp, detector_geometry):
     [
         State("event-id", "data"),
         State("filepath", "children"),
-        State("filename", "data"),
-        State("event-dividers", "data"),
     ],
 )
-def select_file(input_filename, event_id, filepath, filename, event_dividers):
+def select_file(input_filename, event_id, filepath):
     filepath_message = filepath
     if event_id is None:
         event_id = 0
@@ -469,20 +467,23 @@ def select_file(input_filename, event_id, filepath, filename, event_dividers):
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:
         print(h5_file, "not found")
-        return filename, event_dividers, event_id, True, f"File {filepath_message}{input_filename} not found"
+        return no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} not found"
     except IsADirectoryError:
-        return filename, event_dividers, event_id, False, ""
+        return no_update, no_update, event_id, False, ""
     except OSError as err:
         print(h5_file, "invalid file", err)
-        return filename, event_dividers, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
+        return no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
 
     packets = datalog["packets"]
 
     trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
-    event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
-    event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
+    if trigger_packets.size > 0:
+        event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
+        event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
 
-    return str(h5_file), event_dividers, event_id, False, ""
+        return str(h5_file), event_dividers, event_id, False, ""
+    else:
+        return no_update, no_update, event_id, True, "No triggers found"
 
 @app.callback(
     [
@@ -792,6 +793,14 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 figure=fig,
                                 clear_on_unhover=True,
                                 style={"display": "none"},
+                                config = {
+                                    'toImageButtonOptions': {
+                                        'format': 'png', # one of png, svg, jpeg, webp
+                                        'height': 900,
+                                        'width': 1200,
+                                    },
+                                    'displaylogo': False
+                                }
                             ))
                         ],
                         width=7,
@@ -802,10 +811,12 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 [
                                     html.P(id="object-information"),
                                     dcc.Graph(
-                                        id="time-histogram", style={"display": "none"}
+                                        id="time-histogram", style={"display": "none"},
+                                        config = {'displaylogo': False}
                                     ),
                                     dcc.Graph(
-                                        id="light-waveform", style={"display": "none"}
+                                        id="light-waveform", style={"display": "none"},
+                                        config = {'displaylogo': False}
                                     ),
                                 ]
                             )
