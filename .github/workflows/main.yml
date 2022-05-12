@@ -17,3 +17,8 @@ jobs:
           registry: registry.nersc.gov
           username: soleti
           password: ${{ secrets.NERSC_PASSWORD }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
