@@ -15,7 +15,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: registry.nersc.gov
-          username: soleti
+          username: ${{ secrets.NERSC_USERNAME }}
           password: ${{ secrets.NERSC_PASSWORD }}
       -
         name: Build and push
