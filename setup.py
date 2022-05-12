@@ -24,6 +24,7 @@ setuptools.setup(
         "dash-uploader",
         "dash-extensions",
         "dash-bootstrap-components",
+        "dash_daq"
     ],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",

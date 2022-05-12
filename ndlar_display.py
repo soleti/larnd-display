@@ -372,7 +372,7 @@ app.layout = html.Div(
     style={
         "width": "100vw",
         "height": "100vh",
-        "padding": "1em",
+        "padding": "1em 1em 1em 1em",
         "margin": "0",
         "background-color": "rgb(17,17,17)",
     },
