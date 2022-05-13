@@ -53,11 +53,10 @@ app = DashProxy(
 )
 
 
-def draw_event(filename, geometry, event_dividers, event_id, do_plot_tracks, do_plot_opids):
+def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_plot_tracks, do_plot_opids):
     """Draw 3D event display of event"""
     with h5py.File(filename, "r") as datalog:
         packets = datalog["packets"]
-
         start_packet = event_dividers[event_id]
         end_packet = event_dividers[event_id + 1]
 
@@ -81,14 +80,13 @@ def draw_event(filename, geometry, event_dividers, event_id, do_plot_tracks, do_
         drawn_objects.extend(plot_geometry(geometry))
 
         if "light_trig" in datalog.keys() and do_plot_opids:
-            start_t = packets[start_packet]["timestamp"]
-            light_indeces = np.argwhere(datalog["light_trig"]["ts_sync"] == start_t)
+
             integrals = []
             indeces = []
-            for light_index in light_indeces:
-                waveforms = datalog['light_wvfm'][light_index[0]]
+            for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
+                waveforms = datalog['light_wvfm'][light_index]
                 try:
-                    indeces.append(datalog['light_trig'][light_index[0]]['op_channel'])
+                    indeces.append(datalog['light_trig'][light_index]['op_channel'])
                     integrals.append(np.sum(waveforms, axis=1))
                 except ValueError:
                     break
@@ -116,6 +114,7 @@ def draw_event(filename, geometry, event_dividers, event_id, do_plot_tracks, do_
     [
         Input("event-id", "data"),
         Input("event-dividers", "data"),
+        Input("light-dividers", "data"),
         Input("filename", "data"),
         Input("geometry-state", "data"),
         Input("plot-tracks-state", "data"),
@@ -125,7 +124,7 @@ def draw_event(filename, geometry, event_dividers, event_id, do_plot_tracks, do_
         State("event-display", "figure"),
     ],
 )
-def update_output(event_id, event_dividers, filename, geometry, do_plot_tracks, do_plot_opids, figure):
+def update_output(event_id, event_dividers, light_dividers, filename, geometry, do_plot_tracks, do_plot_opids, figure):
     """Update 3D event display end event id"""
     fig = go.Figure(figure)
 
@@ -134,7 +133,7 @@ def update_output(event_id, event_dividers, filename, geometry, do_plot_tracks, 
 
     try:
         fig.data = []
-        fig.add_traces(draw_event(filename, GEOMETRIES[geometry], event_dividers, event_id, do_plot_tracks, do_plot_opids))
+        fig.add_traces(draw_event(filename, GEOMETRIES[geometry], event_dividers, light_dividers, event_id, do_plot_tracks, do_plot_opids))
     except IndexError as err:
         print("IndexError",err)
         return fig, {"display": "none"}, True, no_update, no_update
@@ -161,11 +160,11 @@ def reset_light(_):
     [
         State("event-display", "figure"),
         State("event-id", "data"),
-        State("event-dividers", "data"),
+        State("light-dividers", "data"),
         State("filename", "data"),
     ],
 )
-def light_waveform(click_data, _, event_id, event_dividers, filename):
+def light_waveform(click_data, _, event_id, light_dividers, filename):
     """Plot the light waveform for the selected event on the clicked optical detector"""
     if (
         click_data
@@ -173,29 +172,26 @@ def light_waveform(click_data, _, event_id, event_dividers, filename):
         and "opid" in click_data["points"][0]["id"]
     ):
         opid = int(click_data["points"][0]["id"].split("_")[1])
-        start_packet = event_dividers[event_id]
 
         with h5py.File(filename, "r") as datalog:
             if "light_wvfm" not in datalog.keys():
                 return go.Figure(), dict(display="none")
 
-            packets = datalog["packets"]
-            start_t = packets[start_packet]["timestamp"]
-            light_indeces = np.argwhere(datalog["light_trig"]["ts_sync"] == start_t)
-
-            for light_index in light_indeces:
+            for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
                 try:
-                    if opid not in datalog['light_trig'][light_index[0]]['op_channel']:
+                    opid_index = np.argwhere(datalog['light_trig'][light_index]['op_channel']==opid)
+                    if opid_index.any():
+                        opid_index = opid_index[0][0]
+                    else:
                         continue
-                    opid_index = np.argwhere(datalog['light_trig'][light_index[0]]['op_channel']==opid)[0][0]
                 except ValueError:
                     opid_index = opid
-                except IndexError:
-                    print(opid, datalog['light_trig'][light_index[0]]['op_channel'])
+                except IndexError as err:
+                    print(opid, datalog['light_trig'][light_index]['op_channel'])
 
                 fig = go.Figure(
                     go.Scatter(
-                        x=np.arange(0, 256), y=datalog['light_wvfm'][light_index[0]][opid_index]
+                        x=np.arange(0, 256), y=datalog['light_wvfm'][light_index][opid_index]
                     ),
                     layout=dict(
                         title=f"Optical detector {opid}",
@@ -384,13 +380,16 @@ def update_total_events(modified_timestamp, event_dividers):
         Input("input-evid", "value"),
         Input("event-dividers", "data"),
     ],
-    Output("event-id", "data"),
+    [
+        Output("event-id", "data"),
+        Output("input-evid", "value"),
+    ]
 )
 def update_event_id_click(input_evid, event_dividers):
     try:
         event_id = int(input_evid)
     except TypeError:
-        return no_update
+        return no_update,  no_update
 
     if event_dividers:
         if event_id >= len(event_dividers) - 1:
@@ -399,9 +398,9 @@ def update_event_id_click(input_evid, event_dividers):
         if event_id < 0:
             event_id = 0
 
-        return event_id
+        return event_id, event_id
     else:
-        return no_update
+        return no_update, no_update
 
 @app.callback(
     Output("input-evid", "value"),
@@ -412,7 +411,6 @@ def update_event_id(modified_timestamp, event_id):
     """Update the event id input box with the current event id"""
     if modified_timestamp is None:
         raise PreventUpdate
-
     try:
         return int(event_id)
     except TypeError:
@@ -437,6 +435,7 @@ def update_geometry(modified_timestamp, detector_geometry):
     [
         Output("filename", "data"),
         Output("event-dividers", "data"),
+        Output("light-dividers", "data"),
         Output("event-id", "data"),
         Output("alert-file-not-found", "is_open"),
         Output("alert-file-not-found", "children"),
@@ -467,23 +466,37 @@ def select_file(input_filename, event_id, filepath):
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:
         print(h5_file, "not found")
-        return no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} not found"
+        return no_update, no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} not found"
     except IsADirectoryError:
-        return no_update, no_update, event_id, False, ""
+        return no_update, no_update, no_update, event_id, False, ""
     except OSError as err:
         print(h5_file, "invalid file", err)
-        return no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
+        return no_update, no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
 
     packets = datalog["packets"]
 
-    trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
-    if trigger_packets.size > 0:
-        event_dividers = trigger_packets[:-1][np.diff(trigger_packets) != 1]
-        event_dividers = np.append(event_dividers, [trigger_packets[-1], len(packets)])
+    # trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
+    trigger_mask = packets["packet_type"] == 7
+    if trigger_mask.any():
 
-        return str(h5_file), event_dividers, event_id, False, ""
+        if "light_trig" in datalog.keys():
+            ts, il, ic = np.intersect1d(datalog["light_trig"]["ts_sync"], packets[trigger_mask]["timestamp"], return_indices=True)
+            ic = np.indices(datalog["packets"].shape)[0][trigger_mask][ic]
+
+            merge_mask = np.diff(ts.astype(int)) > 200
+            il = il[np.r_[True, merge_mask]]
+            ic = ic[np.r_[True, merge_mask]]
+            ic = np.append(ic, len(packets))
+            il = np.append(il, len(datalog["light_trig"]))
+        else:
+            trigger_packets = packets[trigger_mask]
+            ic = trigger_packets[:-1][np.diff(trigger_packets) != 1]
+            ic = np.append(ic, [trigger_packets[-1], len(packets)])
+            il = np.array([])
+
+        return str(h5_file), ic, il, event_id, False, no_update
     else:
-        return no_update, no_update, event_id, True, "No triggers found"
+        return no_update, no_update, no_update, event_id, True, "No triggers found"
 
 @app.callback(
     [
@@ -634,6 +647,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             dcc.Store(id="filename", storage_type="session"),
             dcc.Store(id="event-id", storage_type="session"),
             dcc.Store(id="event-dividers", storage_type="session"),
+            dcc.Store(id="light-dividers", storage_type="session"),
             dcc.Store(id="geometry-state", storage_type="session"),
             dcc.Store(id="plot-tracks-state", storage_type="session", data=False),
             dcc.Store(id="plot-opids-state", storage_type="session", data=False),
