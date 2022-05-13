@@ -250,11 +250,11 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
             for io_group, io_channel in zip(
                 event_packets["io_group"], event_packets["io_channel"]
             ):
-                if not io_group % 4:
-                    this_io_group = 4
-                else:
-                    this_io_group = io_group % 4
-                tile_id = GEOMETRIES[geometry].get_tile_id(this_io_group, io_channel)
+                # if not io_group % 2:
+                #     this_io_group = 2
+                # else:
+                #     this_io_group = io_group % 2
+                tile_id = GEOMETRIES[geometry].get_tile_id(io_group, io_channel)
                 if (
                     tile_id in GEOMETRIES[geometry].tile_map[0][0]
                     or tile_id in GEOMETRIES[geometry].tile_map[0][1]
@@ -265,12 +265,13 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
 
             anodes = np.array(anodes)
 
-            n_modules = len(GEOMETRIES[geometry].module_to_io_groups.keys())
+            n_modules = GEOMETRIES[geometry].module_to_io_groups.keys()
             start_t = packets[start_packet]["timestamp"]
             active_modules = []
 
-            for module_id in range(n_modules):
-                query = (event_packets["io_group"] - 1) // 4 == module_id
+            for module_id in n_modules:
+                # print(event_packets["io_group"],((event_packets["io_group"])-1) // 2)
+                query = ((event_packets["io_group"])+1) // 2 == module_id
                 if len(event_packets[query]) == 0:
                     continue
 
@@ -282,7 +283,7 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     rows=len(active_modules),
                     cols=2,
                     subplot_titles=[
-                        "(%i,%i)" % (m + 1, p + 1) for m in active_modules for p in range(2)
+                        "(%i,%i)" % (m, p + 1) for m in active_modules for p in range(2)
                     ],
                     vertical_spacing=0.25 / len(active_modules)
                     if len(active_modules)
@@ -291,9 +292,10 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     shared_yaxes=True,
                 )
 
-            for i_module_id, module_id in enumerate(active_modules):
-                query = (event_packets["io_group"] - 1) // 4 == module_id
-
+            # print(event_packets["io_group"],active_modules)
+            for im, module_id in enumerate(active_modules):
+                query = (event_packets["io_group"]+1) // 2 == module_id
+                # print(module_id, event_packets["timestamp"][query])
                 histo1 = go.Histogram(
                     x=event_packets["timestamp"][(anodes == 0) & query] - start_t,
                     xbins=dict(start=0, end=3200, size=20),
@@ -303,8 +305,8 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     xbins=dict(start=0, end=3200, size=20),
                 )
                 if histos:
-                    histos.append_trace(histo1, i_module_id + 1, 1)
-                    histos.append_trace(histo2, i_module_id + 1, 2)
+                    histos.append_trace(histo1, im+1, 1)
+                    histos.append_trace(histo2, im+1, 2)
 
             if histos:
                 histos.update_annotations(font_size=12)

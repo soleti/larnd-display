@@ -1,7 +1,6 @@
 """Utilities module used by the event display"""
 
 from collections import defaultdict
-from charset_normalizer import detect
 
 import numpy as np
 import yaml
@@ -161,7 +160,6 @@ def plot_light(this_detector, n_photons, op_indeces, max_integral):
                                  light_y + light_width/2 + this_detector.tpc_offsets[0][1] - 0.25, 2)
 
                 xx,zz = np.meshgrid(xx,zz)
-
                 light_color=[[0.0, get_continuous_color(COLORSCALE, intermed=max(0,-n_photons[opid%96])/max_integral)],
                              [1.0, get_continuous_color(COLORSCALE, intermed=max(0,-n_photons[opid%96])/max_integral)]]
 
