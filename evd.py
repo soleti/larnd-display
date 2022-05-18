@@ -83,6 +83,7 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
 
             integrals = []
             indeces = []
+
             for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
                 waveforms = datalog['light_wvfm'][light_index]
                 try:
@@ -93,7 +94,6 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
 
             if integrals:
                 min_integral = min([min(i) for i in integrals])
-
                 for integral, index in zip(integrals, indeces):
                     drawn_objects.extend(
                         plot_light(
@@ -180,14 +180,14 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
             for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
                 try:
                     opid_index = np.argwhere(datalog['light_trig'][light_index]['op_channel']==opid)
-                    if opid_index.any():
+                    if len(opid_index) > 0:
                         opid_index = opid_index[0][0]
                     else:
                         continue
                 except ValueError:
                     opid_index = opid
                 except IndexError as err:
-                    print(opid, datalog['light_trig'][light_index]['op_channel'])
+                    print(err, opid, datalog['light_trig'][light_index]['op_channel'])
 
                 fig = go.Figure(
                     go.Scatter(
@@ -270,7 +270,6 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
             active_modules = []
 
             for module_id in n_modules:
-                # print(event_packets["io_group"],((event_packets["io_group"])-1) // 2)
                 query = ((event_packets["io_group"])+1) // 2 == module_id
                 if len(event_packets[query]) == 0:
                     continue
@@ -292,10 +291,8 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     shared_yaxes=True,
                 )
 
-            # print(event_packets["io_group"],active_modules)
             for im, module_id in enumerate(active_modules):
                 query = (event_packets["io_group"]+1) // 2 == module_id
-                # print(module_id, event_packets["timestamp"][query])
                 histo1 = go.Histogram(
                     x=event_packets["timestamp"][(anodes == 0) & query] - start_t,
                     xbins=dict(start=0, end=3200, size=20),
@@ -484,6 +481,10 @@ def select_file(input_filename, event_id, filepath):
         if "light_trig" in datalog.keys():
             ts, il, ic = np.intersect1d(datalog["light_trig"]["ts_sync"], packets[trigger_mask]["timestamp"], return_indices=True)
             ic = np.indices(datalog["packets"].shape)[0][trigger_mask][ic]
+            i_sort = np.argsort(il)
+            il = il[i_sort]
+            ic = ic[i_sort]
+            ts = ts[i_sort]
 
             merge_mask = np.diff(ts.astype(int)) > 200
             il = il[np.r_[True, merge_mask]]
