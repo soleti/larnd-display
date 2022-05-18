@@ -177,6 +177,20 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
             if "light_wvfm" not in datalog.keys():
                 return go.Figure(), dict(display="none")
 
+            fig = go.Figure(
+                layout=dict(
+                    title=f"Optical detector {opid}",
+                    margin=dict(l=0, r=0, t=60),
+                    showlegend=True,
+                    template="plotly_white",
+                    legend=dict(
+                        x=0.6,
+                        y=0
+                    ),
+                    font=dict(size=10)
+                ),
+            )
+
             for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
                 try:
                     opid_index = np.argwhere(datalog['light_trig'][light_index]['op_channel']==opid)
@@ -189,19 +203,15 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
                 except IndexError as err:
                     print(err, opid, datalog['light_trig'][light_index]['op_channel'])
 
-                fig = go.Figure(
+                fig.add_traces(
                     go.Scatter(
-                        x=np.arange(0, 256), y=datalog['light_wvfm'][light_index][opid_index]
-                    ),
-                    layout=dict(
-                        title=f"Optical detector {opid}",
-                        margin=dict(l=0, r=0, t=60),
-                        showlegend=False,
-                        template="plotly_white",
-                    ),
+                        x=np.arange(0, 256), y=datalog['light_wvfm'][light_index][opid_index],
+                        name=f"Timestamp: {datalog['light_trig'][light_index]['ts_sync']}"
+                    )
                 )
 
             fig.update_xaxes(
+                title_text="Time [timestamp]",
                 linecolor="lightgray",
                 matches="x",
                 mirror=True,
@@ -209,6 +219,7 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
                 showline=True,
             )
             fig.update_yaxes(
+                title_text="ADC counts",
                 linecolor="lightgray",
                 matches="y",
                 mirror=True,
