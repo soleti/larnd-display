@@ -203,7 +203,7 @@ def plot_hits(this_detector, event_packets, start_packet, last_trigger):
         try:
             x, y = this_detector.geometry[(io_group, io_channel, chip, channel)]
         except KeyError as err:
-            print("Chip key not found", (io_group, io_channel, chip, channel))
+            print("Chip key not found", (io_group, io_channel, chip, channel), err)
             continue
 
         hits[0].append(x/10 + x_offset)

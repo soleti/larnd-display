@@ -4,7 +4,6 @@
 Web-based event display for ArgonCube detectors
 """
 
-from multiprocessing.sharedctypes import Value
 import shutil
 import atexit
 
@@ -17,10 +16,11 @@ import numpy as np
 
 import dash_bootstrap_components as dbc
 import dash_uploader as du
+import dash_daq as daq
+
 from dash import no_update
 from dash import dcc
 from dash import html
-import dash_daq as daq
 from dash.exceptions import PreventUpdate
 from dash_extensions.enrich import Output, DashProxy, Input, State, MultiplexerTransform
 
@@ -39,7 +39,7 @@ GEOMETRIES = {}
 UPLOAD_FOLDER_ROOT = "cache"
 DOCKER_MOUNTED_FOLDER = "/mnt/data/"
 CORI_FOLDER = "https://portal.nersc.gov/project/dune/data/"
-EVENT_BUFFER = 2000 # maximum difference in timeticks between hit and trigger
+EVENT_BUFFER = 2000  # maximum difference in timeticks between hit and trigger
 
 app = DashProxy(
     prevent_initial_callbacks=True,
@@ -47,13 +47,20 @@ app = DashProxy(
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     external_scripts=[
         "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-MML-AM_CHTML",
-        # "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
     ],
     title="LArPix event display",
 )
 
 
-def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_plot_tracks, do_plot_opids):
+def draw_event(
+    filename,
+    geometry,
+    event_dividers,
+    light_dividers,
+    event_id,
+    do_plot_tracks,
+    do_plot_opids,
+):
     """Draw 3D event display of event"""
     with h5py.File(filename, "r") as datalog:
         packets = datalog["packets"]
@@ -64,14 +71,18 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
         event_packets = packets[start_packet:end_packet]
         within_buffer = event_packets["timestamp"] - last_trigger < EVENT_BUFFER
         event_packets = event_packets[within_buffer]
-        drawn_objects = plot_hits(
-            geometry, event_packets, start_packet, last_trigger
-        )
+        drawn_objects = plot_hits(geometry, event_packets, start_packet, last_trigger)
 
-        if do_plot_tracks and "mc_packets_assn" in datalog.keys() and "tracks" in datalog.keys():
+        if (
+            do_plot_tracks
+            and "mc_packets_assn" in datalog.keys()
+            and "tracks" in datalog.keys()
+        ):
             tracks = datalog["tracks"]
             mc_packets = datalog["mc_packets_assn"]
-            track_ids = np.unique(mc_packets[start_packet:end_packet][within_buffer]["track_ids"])[1:]
+            track_ids = np.unique(
+                mc_packets[start_packet:end_packet][within_buffer]["track_ids"]
+            )[1:]
             if len(track_ids) > 0:
                 drawn_objects.extend(
                     plot_tracks(tracks, range(track_ids[0], track_ids[-1]), event_id)
@@ -84,10 +95,12 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
             integrals = []
             indeces = []
 
-            for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
-                waveforms = datalog['light_wvfm'][light_index]
+            for light_index in range(
+                light_dividers[event_id], light_dividers[event_id + 1]
+            ):
+                waveforms = datalog["light_wvfm"][light_index]
                 try:
-                    indeces.append(datalog['light_trig'][light_index]['op_channel'])
+                    indeces.append(datalog["light_trig"][light_index]["op_channel"])
                     integrals.append(np.sum(waveforms, axis=1))
                 except ValueError:
                     break
@@ -96,12 +109,11 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
                 min_integral = min([min(i) for i in integrals])
                 for integral, index in zip(integrals, indeces):
                     drawn_objects.extend(
-                        plot_light(
-                            geometry, integral, index, -min_integral
-                        )
+                        plot_light(geometry, integral, index, -min_integral)
                     )
 
         return drawn_objects
+
 
 @app.callback(
     [
@@ -109,7 +121,7 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
         Output("event-display", "style"),
         Output("alert-geometry", "is_open"),
         Output("alert-geometry", "children"),
-        Output("unique-url","children"),
+        Output("unique-url", "children"),
     ],
     [
         Input("event-id", "data"),
@@ -118,13 +130,22 @@ def draw_event(filename, geometry, event_dividers, light_dividers, event_id, do_
         Input("filename", "data"),
         Input("geometry-state", "data"),
         Input("plot-tracks-state", "data"),
-        Input("plot-opids-state", "data")
+        Input("plot-opids-state", "data"),
     ],
     [
         State("event-display", "figure"),
     ],
 )
-def update_output(event_id, event_dividers, light_dividers, filename, geometry, do_plot_tracks, do_plot_opids, figure):
+def update_output(
+    event_id,
+    event_dividers,
+    light_dividers,
+    filename,
+    geometry,
+    do_plot_tracks,
+    do_plot_opids,
+    figure,
+):
     """Update 3D event display end event id"""
     fig = go.Figure(figure)
 
@@ -133,16 +154,32 @@ def update_output(event_id, event_dividers, light_dividers, filename, geometry, 
 
     try:
         fig.data = []
-        fig.add_traces(draw_event(filename, GEOMETRIES[geometry], event_dividers, light_dividers, event_id, do_plot_tracks, do_plot_opids))
+        fig.add_traces(
+            draw_event(
+                filename,
+                GEOMETRIES[geometry],
+                event_dividers,
+                light_dividers,
+                event_id,
+                do_plot_tracks,
+                do_plot_opids,
+            )
+        )
     except IndexError as err:
-        print("IndexError",err)
+        print("IndexError", err)
         return fig, {"display": "none"}, True, no_update, no_update
     except KeyError as err:
-        print("KeyError",err)
+        print("KeyError", err)
         return fig, {"display": "none"}, True, "Select a geometry first", no_update
 
     url_filename = filename.replace(DOCKER_MOUNTED_FOLDER, "")
-    return fig, {"height": "85vh"}, False, no_update, f"https://larnddisplay.lbl.gov/{url_filename}?geom={geometry}#{event_id}"
+    return (
+        fig,
+        {"height": "85vh"},
+        False,
+        no_update,
+        f"https://larnddisplay.lbl.gov/{url_filename}?geom={geometry}#{event_id}",
+    )
 
 
 @app.callback(Output("light-waveform", "style"), Input("event-id", "data"))
@@ -152,10 +189,7 @@ def reset_light(_):
 
 
 @app.callback(
-    [
-        Output("light-waveform", "figure"),
-        Output("light-waveform", "style")
-    ],
+    [Output("light-waveform", "figure"), Output("light-waveform", "style")],
     Input("event-display", "clickData"),
     [
         State("event-display", "figure"),
@@ -183,17 +217,18 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
                     margin=dict(l=0, r=0, t=60),
                     showlegend=True,
                     template="plotly_white",
-                    legend=dict(
-                        x=0.6,
-                        y=0
-                    ),
-                    font=dict(size=10)
+                    legend=dict(x=0.6, y=0),
+                    font=dict(size=10),
                 ),
             )
 
-            for light_index in range(light_dividers[event_id], light_dividers[event_id+1]):
+            for light_index in range(
+                light_dividers[event_id], light_dividers[event_id + 1]
+            ):
                 try:
-                    opid_index = np.argwhere(datalog['light_trig'][light_index]['op_channel']==opid)
+                    opid_index = np.argwhere(
+                        datalog["light_trig"][light_index]["op_channel"] == opid
+                    )
                     if len(opid_index) > 0:
                         opid_index = opid_index[0][0]
                     else:
@@ -201,12 +236,13 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
                 except ValueError:
                     opid_index = opid
                 except IndexError as err:
-                    print(err, opid, datalog['light_trig'][light_index]['op_channel'])
+                    print(err, opid, datalog["light_trig"][light_index]["op_channel"])
 
                 fig.add_traces(
                     go.Scatter(
-                        x=np.arange(0, 256), y=datalog['light_wvfm'][light_index][opid_index],
-                        name=f"Timestamp: {datalog['light_trig'][light_index]['ts_sync']}"
+                        x=np.arange(0, 256),
+                        y=datalog["light_wvfm"][light_index][opid_index],
+                        name=f"Timestamp: {datalog['light_trig'][light_index]['ts_sync']}",
                     )
                 )
 
@@ -242,7 +278,7 @@ def light_waveform(click_data, _, event_id, light_dividers, filename):
         Input("event-id", "data"),
         Input("event-dividers", "data"),
         Input("filename", "data"),
-        Input("geometry-detector", "value")
+        Input("geometry-detector", "value"),
     ],
 )
 def adc_histogram(event_id, event_dividers, filename, geometry):
@@ -261,10 +297,6 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
             for io_group, io_channel in zip(
                 event_packets["io_group"], event_packets["io_channel"]
             ):
-                # if not io_group % 2:
-                #     this_io_group = 2
-                # else:
-                #     this_io_group = io_group % 2
                 tile_id = GEOMETRIES[geometry].get_tile_id(io_group, io_channel)
                 if (
                     tile_id in GEOMETRIES[geometry].tile_map[0][0]
@@ -281,7 +313,7 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
             active_modules = []
 
             for module_id in n_modules:
-                query = ((event_packets["io_group"])+1) // 2 == module_id
+                query = ((event_packets["io_group"]) + 1) // 2 == module_id
                 if len(event_packets[query]) == 0:
                     continue
 
@@ -296,14 +328,14 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                         "(%i,%i)" % (m, p + 1) for m in active_modules for p in range(2)
                     ],
                     vertical_spacing=0.25 / len(active_modules)
-                    if len(active_modules)
+                    if len(active_modules) > 0
                     else 0,
                     shared_xaxes=True,
                     shared_yaxes=True,
                 )
 
             for im, module_id in enumerate(active_modules):
-                query = (event_packets["io_group"]+1) // 2 == module_id
+                query = (event_packets["io_group"] + 1) // 2 == module_id
                 histo1 = go.Histogram(
                     x=event_packets["timestamp"][(anodes == 0) & query] - start_t,
                     xbins=dict(start=0, end=3200, size=20),
@@ -313,8 +345,8 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     xbins=dict(start=0, end=3200, size=20),
                 )
                 if histos:
-                    histos.append_trace(histo1, im+1, 1)
-                    histos.append_trace(histo2, im+1, 2)
+                    histos.append_trace(histo1, im + 1, 1)
+                    histos.append_trace(histo2, im + 1, 2)
 
             if histos:
                 histos.update_annotations(font_size=12)
@@ -324,7 +356,9 @@ def adc_histogram(event_id, event_dividers, filename, geometry):
                     template="plotly_white",
                     title_text="ADC histograms",
                 )
-                histos.update_xaxes(title_text="Time [timestamp]", row=len(active_modules))
+                histos.update_xaxes(
+                    title_text="Time [timestamp]", row=len(active_modules)
+                )
                 histos.update_xaxes(
                     linecolor="lightgray",
                     matches="x",
@@ -385,6 +419,7 @@ def update_total_events(modified_timestamp, event_dividers):
 
     return f"/ {total_events}"
 
+
 @app.callback(
     [
         Input("input-evid", "value"),
@@ -393,13 +428,13 @@ def update_total_events(modified_timestamp, event_dividers):
     [
         Output("event-id", "data"),
         Output("input-evid", "value"),
-    ]
+    ],
 )
 def update_event_id_click(input_evid, event_dividers):
     try:
         event_id = int(input_evid)
     except TypeError:
-        return no_update,  no_update
+        return no_update, no_update
 
     if event_dividers:
         if event_id >= len(event_dividers) - 1:
@@ -411,6 +446,7 @@ def update_event_id_click(input_evid, event_dividers):
         return event_id, event_id
     else:
         return no_update, no_update
+
 
 @app.callback(
     Output("input-evid", "value"),
@@ -426,6 +462,7 @@ def update_event_id(modified_timestamp, event_id):
     except TypeError:
         raise PreventUpdate
 
+
 @app.callback(
     Output("geometry-detector", "value"),
     Input("geometry-state", "modified_timestamp"),
@@ -440,6 +477,7 @@ def update_geometry(modified_timestamp, detector_geometry):
         return detector_geometry
     except TypeError:
         raise PreventUpdate
+
 
 @app.callback(
     [
@@ -463,7 +501,7 @@ def select_file(input_filename, event_id, filepath):
 
     try:
         try:
-            if filepath['props']['children'] == CORI_FOLDER:
+            if filepath["props"]["children"] == CORI_FOLDER:
                 load_filepath = DOCKER_MOUNTED_FOLDER
                 filepath_message = CORI_FOLDER
         except TypeError:
@@ -476,21 +514,38 @@ def select_file(input_filename, event_id, filepath):
         datalog = h5py.File(h5_file, "r")
     except FileNotFoundError:
         print(h5_file, "not found")
-        return no_update, no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} not found"
+        return (
+            no_update,
+            no_update,
+            no_update,
+            event_id,
+            True,
+            f"File {filepath_message}{input_filename} not found",
+        )
     except IsADirectoryError:
         return no_update, no_update, no_update, event_id, False, ""
     except OSError as err:
         print(h5_file, "invalid file", err)
-        return no_update, no_update, no_update, event_id, True, f"File {filepath_message}{input_filename} is not a valid file"
+        return (
+            no_update,
+            no_update,
+            no_update,
+            event_id,
+            True,
+            f"File {filepath_message}{input_filename} is not a valid file",
+        )
 
     packets = datalog["packets"]
 
-    # trigger_packets = np.argwhere(packets["packet_type"] == 7).T[0]
     trigger_mask = packets["packet_type"] == 7
     if trigger_mask.any():
 
         if "light_trig" in datalog.keys():
-            ts, il, ic = np.intersect1d(datalog["light_trig"]["ts_sync"], packets[trigger_mask]["timestamp"], return_indices=True)
+            ts, il, ic = np.intersect1d(
+                datalog["light_trig"]["ts_sync"],
+                packets[trigger_mask]["timestamp"],
+                return_indices=True,
+            )
             ic = np.indices(datalog["packets"].shape)[0][trigger_mask][ic]
             i_sort = np.argsort(il)
             il = il[i_sort]
@@ -512,12 +567,13 @@ def select_file(input_filename, event_id, filepath):
     else:
         return no_update, no_update, no_update, event_id, True, "No triggers found"
 
+
 @app.callback(
     [
         Output("filename", "data"),
         Output("event-dividers", "data"),
         Output("event-id", "data"),
-        Output("server-filename", "value")
+        Output("server-filename", "value"),
     ],
     Input("select-file", "isCompleted"),
     [
@@ -552,27 +608,22 @@ def upload_file(is_completed, filename, event_dividers, filenames, upload_id):
 
 
 @app.callback(
-    Output('geometry-state', 'data'),
-    Input('geometry-detector', 'value'),
+    Output("geometry-state", "data"),
+    Input("geometry-detector", "value"),
 )
 def update_geometry_state(geometry_detector):
     return geometry_detector
 
 
-@app.callback(
-    Output("plot-tracks-state", "data"),
-    Input("plot-tracks", "on")
-)
+@app.callback(Output("plot-tracks-state", "data"), Input("plot-tracks", "on"))
 def set_plot_true_tracks(on):
     return on
 
 
-@app.callback(
-    Output("plot-opids-state", "data"),
-    Input("plot-opids", "on")
-)
+@app.callback(Output("plot-opids-state", "data"), Input("plot-opids", "on"))
 def set_plot_opids(on):
     return on
+
 
 @app.callback(
     [
@@ -580,11 +631,7 @@ def set_plot_opids(on):
         Output("event-id", "data"),
         Output("geometry-state", "data"),
     ],
-    [
-        Input('url', 'pathname'),
-        Input('url', 'hash'),
-        Input('url', 'search')
-    ]
+    [Input("url", "pathname"), Input("url", "hash"), Input("url", "search")],
 )
 def display_page(pathname, this_hash, search):
     if pathname[1:] and "?geom=" in search:
@@ -610,15 +657,26 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
     if filepath[-1] != "/":
         filepath += "/"
 
-    module0_detector_properties = larndsim_dir + "/larndsim/detector_properties/module0.yaml"
-    twobytwo_detector_properties = larndsim_dir + "/larndsim/detector_properties/2x2.yaml"
-    tile44_layout = larndsim_dir + "/larndsim/pixel_layouts/multi_tile_layout-2.3.16.yaml"
+    module0_detector_properties = (
+        larndsim_dir + "/larndsim/detector_properties/module0.yaml"
+    )
+    twobytwo_detector_properties = (
+        larndsim_dir + "/larndsim/detector_properties/2x2.yaml"
+    )
+    tile44_layout = (
+        larndsim_dir + "/larndsim/pixel_layouts/multi_tile_layout-2.3.16.yaml"
+    )
 
-    GEOMETRIES["Module-0"] = DetectorGeometry(module0_detector_properties, tile44_layout)
+    GEOMETRIES["Module-0"] = DetectorGeometry(
+        module0_detector_properties, tile44_layout
+    )
     GEOMETRIES["2x2"] = DetectorGeometry(twobytwo_detector_properties, tile44_layout)
 
     fig = go.Figure()
-    camera = dict(eye=dict(x=-2, y=0.3, z=1.1), center=dict(x=0, y=0, z=-0.2),)
+    camera = dict(
+        eye=dict(x=-2, y=0.3, z=1.1),
+        center=dict(x=0, y=0, z=-0.2),
+    )
 
     fig.update_layout(
         scene_camera=camera,
@@ -657,7 +715,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             "background-repeat": "no-repeat",
         },
         children=[
-            dcc.Location(id='url'),
+            dcc.Location(id="url"),
             dcc.Store(id="filename", storage_type="session"),
             dcc.Store(id="event-id", storage_type="session"),
             dcc.Store(id="event-dividers", storage_type="session"),
@@ -666,7 +724,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             dcc.Store(id="plot-tracks-state", storage_type="session", data=False),
             dcc.Store(id="plot-opids-state", storage_type="session", data=False),
             html.Div(id="unique-url", style={"display": "none"}),
-            html.P(id='test'),
+            html.P(id="test"),
             html.H1(children="LArPix event display"),
             dbc.Row(
                 [
@@ -695,7 +753,9 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 style={"margin": "0"},
                             ),
                             html.P(
-                                children=html.A(href=filepath, children=filepath) if "https" in filepath else filepath,
+                                children=html.A(href=filepath, children=filepath)
+                                if "https" in filepath
+                                else filepath,
                                 id="filepath",
                                 style={
                                     "display": "inline-block",
@@ -714,18 +774,29 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 },
                                 placeholder="enter file path here...",
                                 size=38,
-                                debounce=True
+                                debounce=True,
                             ),
                             html.P(
                                 children=[
-                                    html.Span("Detector geometry: ", style={"vertical-align": "0.6em"}),
+                                    html.Span(
+                                        "Detector geometry: ",
+                                        style={"vertical-align": "0.6em"},
+                                    ),
                                     dcc.Dropdown(
-                                        id='geometry-detector',
-                                        options=[{'label': x, 'value': x} for x in ['Module-0', '2x2']],
-                                        value='Module-0',
-                                        style={"width": "10em", "display": "inline-block", "height": "2.4em"},
-                                    )
-                                ], style={"margin": "0"}
+                                        id="geometry-detector",
+                                        options=[
+                                            {"label": x, "value": x}
+                                            for x in ["Module-0", "2x2"]
+                                        ],
+                                        value="Module-0",
+                                        style={
+                                            "width": "10em",
+                                            "display": "inline-block",
+                                            "height": "2.4em",
+                                        },
+                                    ),
+                                ],
+                                style={"margin": "0"},
                             ),
                             html.P(
                                 children=[
@@ -738,9 +809,9 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                             "fontSize": 20,
                                             "verticalAlign": "top",
                                         },
-                                    )
+                                    ),
                                 ],
-                                style={"margin": "0"}
+                                style={"margin": "0"},
                             ),
                             dbc.Alert(
                                 children=["File not found"],
@@ -796,16 +867,24 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                             html.P(
                                 children=[
                                     "Plot true tracks ",
-                                    daq.BooleanSwitch(id='plot-tracks', on=False, style={"display": "inline-block"})
+                                    daq.BooleanSwitch(
+                                        id="plot-tracks",
+                                        on=False,
+                                        style={"display": "inline-block"},
+                                    ),
                                 ],
-                                style={"margin": "0"}
+                                style={"margin": "0"},
                             ),
                             html.P(
                                 children=[
                                     "Plot optical detectors ",
-                                    daq.BooleanSwitch(id='plot-opids', on=False, style={"display": "inline-block"})
+                                    daq.BooleanSwitch(
+                                        id="plot-opids",
+                                        on=False,
+                                        style={"display": "inline-block"},
+                                    ),
                                 ],
-                                style={"margin": "0"}
+                                style={"margin": "0"},
                             ),
                         ],
                         width=4,
@@ -816,20 +895,22 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                 [
                     dbc.Col(
                         [
-                            dcc.Loading(dcc.Graph(
-                                id="event-display",
-                                figure=fig,
-                                clear_on_unhover=True,
-                                style={"display": "none"},
-                                config = {
-                                    'toImageButtonOptions': {
-                                        'format': 'png', # one of png, svg, jpeg, webp
-                                        'height': 900,
-                                        'width': 1200,
+                            dcc.Loading(
+                                dcc.Graph(
+                                    id="event-display",
+                                    figure=fig,
+                                    clear_on_unhover=True,
+                                    style={"display": "none"},
+                                    config={
+                                        "toImageButtonOptions": {
+                                            "format": "png",  # one of png, svg, jpeg, webp
+                                            "height": 900,
+                                            "width": 1200,
+                                        },
+                                        "displaylogo": False,
                                     },
-                                    'displaylogo': False
-                                }
-                            ))
+                                )
+                            )
                         ],
                         width=7,
                     ),
@@ -839,12 +920,14 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 [
                                     html.P(id="object-information"),
                                     dcc.Graph(
-                                        id="time-histogram", style={"display": "none"},
-                                        config = {'displaylogo': False}
+                                        id="time-histogram",
+                                        style={"display": "none"},
+                                        config={"displaylogo": False},
                                     ),
                                     dcc.Graph(
-                                        id="light-waveform", style={"display": "none"},
-                                        config = {'displaylogo': False}
+                                        id="light-waveform",
+                                        style={"display": "none"},
+                                        config={"displaylogo": False},
                                     ),
                                 ]
                             )
@@ -853,17 +936,24 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                     ),
                 ]
             ),
-            dbc.Row([
-                html.Footer(
-                    children=[
-                        "Developed by ",
-                        html.A("Stefano Roberto Soleti", href="mailto:roberto@lbl.gov"),
-                        " for the DUNE collaboration. Open issues and send suggestions on ",
-                        html.A("GitHub", href="https://github.com/soleti/larnd-display"),
-                        "."
-                    ], style={'font-size':'x-small'}
-                )
-            ])
+            dbc.Row(
+                [
+                    html.Footer(
+                        children=[
+                            "Developed by ",
+                            html.A(
+                                "Stefano Roberto Soleti", href="mailto:roberto@lbl.gov"
+                            ),
+                            " for the DUNE collaboration. Open issues and send suggestions on ",
+                            html.A(
+                                "GitHub", href="https://github.com/soleti/larnd-display"
+                            ),
+                            ".",
+                        ],
+                        style={"font-size": "x-small"},
+                    )
+                ]
+            ),
         ],
     )
 
