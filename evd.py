@@ -537,7 +537,10 @@ def select_file(input_filename, event_id, filepath):
             f"File {filepath_message}{input_filename} is not a valid file",
         )
 
-    packets = datalog["packets"]
+    try:
+        packets = datalog["packets"]
+    except KeyError:
+        return no_update, no_update, no_update, event_id, True, f"No packets dataset in {filepath_message}{input_filename}"
 
     trigger_mask = packets["packet_type"] == 7
     if trigger_mask.any():
@@ -819,13 +822,13 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                 children=["File not found"],
                                 id="alert-file-not-found",
                                 is_open=False,
-                                duration=3000,
+                                duration=4000,
                                 color="warning",
                             ),
                             dbc.Alert(
                                 "Error loading the file with this detector geometry",
                                 id="alert-geometry",
-                                duration=3000,
+                                duration=4000,
                                 is_open=False,
                                 color="danger",
                             ),
