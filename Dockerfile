@@ -12,7 +12,7 @@ RUN cd larnd-sim-${version} && pip install .
 COPY . .
 
 RUN pip install .
-
+RUN pip install gunicorn
 RUN chmod -R 777 .
 
 # Dockerfile
@@ -27,4 +27,6 @@ RUN useradd -m ${USER} --uid=${UID} && echo "${USER}:${PW}" | \
 # Setup default user, when enter docker container
 USER ${UID}:${GID}
 
-CMD exec ./evd.py larnd-sim-${version} --host 0.0.0.0 --filepath=https://portal.nersc.gov/project/dune/data/
+# CMD ["gunicorn", "'index:run_display(", '"larnd-sim-0.3.1"', "https://portal.nersc.gov/project/dune/data/)'", "--bind=0.0.0.0:5000"]
+CMD gunicorn 'index:run_display("larnd-sim-0.3.1", "https://portal.nersc.gov/project/dune/data/")' --workers=2 --bind=0.0.0.0:5000
+# CMD exec ./evd.py larnd-sim-${version} --host 0.0.0.0 --filepath=https://portal.nersc.gov/project/dune/data/

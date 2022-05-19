@@ -42,6 +42,7 @@ CORI_FOLDER = "https://portal.nersc.gov/project/dune/data/"
 EVENT_BUFFER = 2000  # maximum difference in timeticks between hit and trigger
 
 app = DashProxy(
+    __name__,
     prevent_initial_callbacks=True,
     transforms=[MultiplexerTransform()],
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -51,6 +52,7 @@ app = DashProxy(
     title="LArPix event display",
 )
 
+server = app.server
 
 def draw_event(
     filename,
@@ -725,7 +727,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
             dcc.Store(id="plot-opids-state", storage_type="session", data=False),
             html.Div(id="unique-url", style={"display": "none"}),
             html.P(id="test"),
-            html.H1(children="LArPix event display"),
+            html.H1(children="ArgonCube event display", style={"font-size": "x-large"}),
             dbc.Row(
                 [
                     dbc.Col(
@@ -792,7 +794,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
                                         style={
                                             "width": "10em",
                                             "display": "inline-block",
-                                            "height": "2.4em",
+                                            "height": "2.5em",
                                         },
                                     ),
                                 ],
@@ -957,9 +959,7 @@ def run_display(larndsim_dir, host="127.0.0.1", port=5000, filepath="."):
         ],
     )
 
-    app.run_server(port=port, host=host)
-
-    return app
+    return port, host
 
 
 @atexit.register
@@ -971,7 +971,8 @@ def clean_cache():
     except OSError as err:
         print("Can't clean %s : %s" % (UPLOAD_FOLDER_ROOT, err.strerror))
 
+du.configure_upload(app, UPLOAD_FOLDER_ROOT)
 
 if __name__ == "__main__":
-    du.configure_upload(app, UPLOAD_FOLDER_ROOT)
-    fire.Fire(run_display)
+    port, host = fire.Fire(run_display)
+    app.run_server(port=port, host=host)
