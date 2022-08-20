@@ -319,7 +319,7 @@ class DetectorGeometry():
 
                 for chip in tile_chip_to_io[tile]:
                     io_group_io_channel = tile_chip_to_io[tile][chip]
-                    io_group = io_group_io_channel//1000 + (module_id-1)*2
+                    io_group = io_group_io_channel//1000 + (module_id-1)*len(detprop['module_to_io_groups'][module_id])
                     io_channel = io_group_io_channel % 1000
                     self.io_group_io_channel_to_tile[(io_group, io_channel)] = tile
 

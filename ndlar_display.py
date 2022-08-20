@@ -22,7 +22,7 @@ from larndsim.consts import detector
 MY_GEOMETRY = None
 
 app = dash.Dash(
-    __name__, external_stylesheets=[dbc.themes.DARKLY], title="ND-Lar event display"
+    __name__, external_stylesheets=[dbc.themes.DARKLY], title="ND-LAr event display"
 )
 
 @app.callback(
